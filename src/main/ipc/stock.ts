@@ -19,7 +19,7 @@ const FORCED_DIRECTION: Record<string, 'in' | 'out' | undefined> = {
   perte: 'out', retour_fournisseur: 'out', retour_client: 'in', ajustement: undefined
 }
 
-function listMovements(articleId?: number, limit = 300): StockMovement[] {
+function listMovements(articleId?: number, limit = 3000): StockMovement[] {
   const rows = getDb().prepare(`
     SELECT m.id, m.article_id, a.barcode, a.designation, a.unit, m.type, m.quantity, m.note, m.created_at
     FROM stock_movements m JOIN articles a ON a.id = m.article_id

@@ -57,3 +57,7 @@
   #ticket { position: absolute; left: 0; top: 0; width: 72mm; color: #000; background: #fff; }
   @page { margin: 4mm; }
 }
+
+/* Champs numériques des grilles de saisie : pas de flèches, on tape directement */
+input.no-spin::-webkit-outer-spin-button, input.no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input.no-spin { -moz-appearance: textfield; }

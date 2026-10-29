@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
 import { cn, formatQty } from '@/lib/utils'
+import DataGrid, { datePreset, type GridColumn } from '@/components/DataGrid'
 import { useAppConfig } from '@/lib/useAppConfig'
 import { stockLevel } from '@shared/settings'
 import { MOVEMENT_LABELS, type Article, type MovementInput, type StockMovement } from '@shared/types'
@@ -38,11 +39,28 @@ export default function StockPage() {
     () => articles.filter((a) => stockLevel(a.stock, a.minStock, cfg) !== 'ok').sort((x, y) => x.stock - y.stock),
     [articles, cfg]
   )
-  const q = search.toLowerCase().trim()
-  const shownMovements = movements.filter((m) => !q || m.designation.toLowerCase().includes(q) || m.barcode.toLowerCase().includes(q))
+  const level = (a: Article) => stockLevel(a.stock, a.minStock, cfg)
+  const alertCols = useMemo<GridColumn<Article>[]>(() => [
+    { id: 'designation', header: 'Article', value: (a) => `${a.designation} ${a.barcode}`, cell: (a) => <><div className="font-medium">{a.designation}</div><div className="font-mono text-xs text-muted-foreground">{a.barcode}</div></> },
+    { id: 'category', header: 'Catégorie', type: 'enum', value: (a) => a.categoryName ?? '(Sans catégorie)', hidden: true },
+    { id: 'stock', header: 'Stock', type: 'number', value: (a) => a.stock, align: 'right', cell: (a) => <Badge tone={a.stock <= 0 ? 'danger' : 'warning'} className="tnum">{formatQty(a.stock)} {a.unit}</Badge> },
+    { id: 'minStock', header: 'Seuil', type: 'number', value: (a) => a.minStock, align: 'right' },
+    { id: 'level', header: 'État', type: 'enum', value: (a) => level(a), options: [{ value: 'out', label: 'Rupture' }, { value: 'low', label: 'Stock bas' }],
+      cell: (a) => <Badge tone={level(a) === 'out' ? 'danger' : 'warning'}>{level(a) === 'out' ? 'Rupture' : 'Stock bas'}</Badge> },
+    { id: 'actions', header: '', value: () => '', filterable: false, sortable: false, align: 'right', width: '8rem', cell: (a) => <Button size="sm" variant="outline" onClick={() => setDialogFor(a)}>Ajuster</Button> }
+  ], [cfg]) // eslint-disable-line react-hooks/exhaustive-deps
+  const moveCols = useMemo<GridColumn<StockMovement>[]>(() => [
+    { id: 'createdAt', header: 'Date', type: 'date', value: (m) => m.createdAt, width: '12rem', cell: (m) => <span className="tnum text-muted-foreground">{m.createdAt.slice(8, 10)}/{m.createdAt.slice(5, 7)}/{m.createdAt.slice(0, 4)} {m.createdAt.slice(11, 16)}</span> },
+    { id: 'designation', header: 'Article', value: (m) => `${m.designation} ${m.barcode}`, cell: (m) => <><div className="font-medium">{m.designation}</div><div className="font-mono text-xs text-muted-foreground">{m.barcode}</div></> },
+    { id: 'type', header: 'Type', type: 'enum', value: (m) => m.type, options: Object.entries(MOVEMENT_LABELS).map(([value, label]) => ({ value, label })), cell: (m) => <Badge>{MOVEMENT_LABELS[m.type]}</Badge> },
+    { id: 'quantity', header: 'Quantité', type: 'number', value: (m) => m.quantity, align: 'right',
+      cell: (m) => <span className={cn('tnum inline-flex items-center gap-1 font-semibold', m.quantity > 0 ? 'text-success' : 'text-destructive')}>{m.quantity > 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}{m.quantity > 0 ? '+' : ''}{formatQty(m.quantity)} {m.unit}</span> },
+    { id: 'note', header: 'Note', value: (m) => m.note ?? '', cell: (m) => <span className="text-muted-foreground">{m.note ?? '—'}</span> }
+  ], [])
+
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 p-8">
+    <div className="mx-auto max-w-[1500px] space-y-6 p-8">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Stock</h1>
@@ -60,55 +78,15 @@ export default function StockPage() {
         ))}
       </div>
 
-      <section className="rounded-lg border bg-card shadow-soft">
-        {tab === 'mouvements' && (
-          <div className="border-b p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Filtrer par article ou code-barres…" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-          </div>
-        )}
-
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-              {(tab === 'alertes' ? ['Article', 'Stock', 'Seuil', ''] : ['Date', 'Article', 'Type', 'Quantité', 'Note']).map((h) => (
-                <th key={h} className="px-4 py-3 font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {tab === 'alertes' && alerts.map((a) => (
-              <tr key={a.id} className="border-b last:border-0 hover:bg-muted/50">
-                <td className="px-4 py-3"><div className="font-medium">{a.designation}</div><div className="font-mono text-xs text-muted-foreground">{a.barcode}</div></td>
-                <td className="px-4 py-3"><Badge tone={a.stock <= 0 ? 'danger' : 'warning'} className="tnum">{formatQty(a.stock)} {a.unit}</Badge></td>
-                <td className="tnum px-4 py-3 text-muted-foreground">{formatQty(a.minStock)}</td>
-                <td className="px-4 py-3 text-right"><Button size="sm" variant="outline" onClick={() => setDialogFor(a)}>Ajuster</Button></td>
-              </tr>
-            ))}
-            {tab === 'mouvements' && shownMovements.map((m) => (
-              <tr key={m.id} className="border-b last:border-0 hover:bg-muted/50">
-                <td className="tnum px-4 py-3 text-muted-foreground">{m.createdAt}</td>
-                <td className="px-4 py-3"><div className="font-medium">{m.designation}</div><div className="font-mono text-xs text-muted-foreground">{m.barcode}</div></td>
-                <td className="px-4 py-3"><Badge>{MOVEMENT_LABELS[m.type]}</Badge></td>
-                <td className={cn('tnum px-4 py-3 font-semibold', m.quantity > 0 ? 'text-success' : 'text-destructive')}>
-                  <span className="inline-flex items-center gap-1">
-                    {m.quantity > 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                    {m.quantity > 0 ? '+' : ''}{formatQty(m.quantity)} {m.unit}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{m.note ?? '—'}</td>
-              </tr>
-            ))}
-            {((tab === 'alertes' && !alerts.length) || (tab === 'mouvements' && !shownMovements.length)) && (
-              <tr><td colSpan={5} className="py-16 text-center text-muted-foreground">
-                {tab === 'alertes' ? 'Aucune alerte : tous les stocks sont suffisants.' : 'Aucun mouvement.'}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+      {tab === 'alertes' ? (
+        <DataGrid id="stock-alertes" data={alerts} columns={alertCols} exportName="alertes-stock" searchPlaceholder="Rechercher un article, un code-barres…"
+          presets={[{ label: 'Ruptures', filters: { level: 'out' } }, { label: 'Stock bas', filters: { level: 'low' } }]}
+          emptyText="Aucune alerte : tous les stocks sont suffisants." />
+      ) : (
+        <DataGrid id="stock-mouvements" data={movements} columns={moveCols} exportName="mouvements-stock" searchPlaceholder="Rechercher un article, un code-barres, une note…"
+          presets={[{ label: 'Entrées', filters: { quantity: { min: '0.001' } } }, { label: 'Sorties', filters: { quantity: { max: '-0.001' } } }, { label: 'Aujourd’hui', filters: { createdAt: datePreset('today') } }]}
+          emptyText="Aucun mouvement." />
+      )}
 
       <MovementDialog articles={articles} target={dialogFor} onClose={() => setDialogFor(null)} onSaved={() => { setDialogFor(null); load() }} />
     </div>

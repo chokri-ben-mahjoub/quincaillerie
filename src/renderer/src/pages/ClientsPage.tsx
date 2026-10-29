@@ -3,7 +3,8 @@ import { AlertTriangle, FileText, HandCoins, Pencil, Plus, Search, Trash2, Users
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { Input, Label, Select } from '@/components/ui/input'
+import { Input, Label } from '@/components/ui/input'
+import DataGrid, { type GridColumn } from '@/components/DataGrid'
 import { CreditMeter } from '@/components/CreditMeter'
 import ClientStatementDialog from '@/components/ClientStatementDialog'
 import { formatMoney } from '@/lib/utils'
@@ -14,13 +15,10 @@ const EMPTY: ClientInput = { name: '', phone: '', address: '', creditLimit: 0 }
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
-  const [search, setSearch] = useState('')
-  const [debtOnly, setDebtOnly] = useState(false)
   const [edit, setEdit] = useState<Client | 'new' | null>(null)
   const [payFor, setPayFor] = useState<Client | null>(null)
   const [message, setMessage] = useState('')
   const [statementFor, setStatementFor] = useState<number | null>(null)
-  const [sort, setSort] = useState<'name' | 'debt'>('name')
 
   const load = useCallback(async () => {
     const r = await window.api.clients.list()
@@ -28,14 +26,32 @@ export default function ClientsPage() {
   }, [])
   useEffect(() => { load() }, [load])
 
-  const q = search.toLowerCase().trim()
-  const shown = useMemo(() => clients.filter((c) =>
-    (!debtOnly || c.balance > 0) && (!q || c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(q)))
-    .sort((a, b) => (sort === 'debt' ? b.balance - a.balance : a.name.localeCompare(b.name))), [clients, q, debtOnly, sort])
   const totalDebt = clients.reduce((s, c) => s + Math.max(c.balance, 0), 0)
   const indebted = clients.filter((c) => c.balance > 0).length
   const nearLimit = clients.filter((c) => c.creditLimit > 0 && c.balance / c.creditLimit >= 0.8).length
   const available = clients.reduce((s, c) => s + (c.creditLimit > 0 ? Math.max(c.creditLimit - c.balance, 0) : 0), 0)
+
+  const usage = (c: Client) => (c.creditLimit > 0 ? Math.round((c.balance / c.creditLimit) * 100) : null)
+  const columns = useMemo<GridColumn<Client>[]>(() => [
+    { id: 'name', header: 'Nom', value: (c) => c.name + ' ' + (c.address ?? ''),
+      cell: (c) => <button className="text-left" onClick={(e) => { e.stopPropagation(); setStatementFor(c.id) }}><div className="font-medium hover:text-primary hover:underline">{c.name}</div><div className="text-xs text-muted-foreground">{c.address}</div></button> },
+    { id: 'phone', header: 'Téléphone', value: (c) => c.phone ?? '', cell: (c) => <span className="text-muted-foreground">{c.phone || '—'}</span> },
+    { id: 'creditLimit', header: 'Plafond crédit', type: 'money', value: (c) => c.creditLimit, align: 'right',
+      cell: (c) => (c.creditLimit > 0 ? <span className="tnum">{formatMoney(c.creditLimit)}</span> : <span className="text-muted-foreground">Pas de crédit</span>) },
+    { id: 'usage', header: 'Utilisation du crédit (%)', type: 'number', value: usage, width: '13rem', cell: (c) => <CreditMeter balance={c.balance} limit={c.creditLimit} compact /> },
+    { id: 'balance', header: 'Dette', type: 'money', value: (c) => c.balance, align: 'right', summary: 'sum',
+      cell: (c) => (c.balance > 0 ? <Badge tone="danger" className="tnum">{formatMoney(c.balance)}</Badge> : c.balance < 0 ? <Badge tone="success" className="tnum">Avoir {formatMoney(-c.balance)}</Badge> : <Badge tone="success">À jour</Badge>) },
+    { id: 'available', header: 'Crédit disponible', type: 'money', value: (c) => (c.creditLimit > 0 ? Math.max(c.creditLimit - c.balance, 0) : 0), align: 'right', hidden: true },
+    { id: 'actions', header: '', value: () => '', filterable: false, sortable: false, align: 'right', width: '19rem',
+      cell: (c) => (
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button size="sm" variant="ghost" onClick={() => setStatementFor(c.id)}><FileText className="h-4 w-4" />Relevé</Button>
+          {c.balance > 0 && <Button size="sm" variant="outline" onClick={() => setPayFor(c)}><HandCoins className="h-4 w-4" />Encaisser</Button>}
+          <Button variant="ghost" size="icon" onClick={() => setEdit(c)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => remove(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      ) }
+  ], []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function remove(c: Client) {
     if (!confirm(`Supprimer « ${c.name} » ?`)) return
@@ -45,7 +61,7 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 p-8">
+    <div className="mx-auto max-w-[1500px] space-y-6 p-8">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
@@ -70,45 +86,13 @@ export default function ClientsPage() {
 
       {message && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{message}</p>}
 
-      <section className="rounded-lg border bg-card shadow-soft">
-        <div className="flex items-center gap-3 border-b p-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Rechercher par nom ou téléphone…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <Select className="w-48" value={sort} onChange={(e) => setSort(e.target.value as 'name' | 'debt')}>
-            <option value="name">Trier par nom</option><option value="debt">Trier par dette (décroissant)</option>
-          </Select>
-          <Button variant={debtOnly ? 'default' : 'outline'} onClick={() => setDebtOnly((v) => !v)}>Avec dette</Button>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-              {['Nom', 'Téléphone', 'Plafond crédit', 'Utilisation du crédit', 'Dette', ''].map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((c) => (
-              <tr key={c.id} className="border-b last:border-0 hover:bg-muted/50">
-                <td className="px-4 py-3"><button className="text-left" onClick={() => setStatementFor(c.id)}><div className="font-medium hover:text-primary hover:underline">{c.name}</div><div className="text-xs text-muted-foreground">{c.address}</div></button></td>
-                <td className="px-4 py-3 text-muted-foreground">{c.phone || '—'}</td>
-                <td className="tnum px-4 py-3">{c.creditLimit > 0 ? formatMoney(c.creditLimit) : <span className="text-muted-foreground">Pas de crédit</span>}</td>
-                <td className="px-4 py-3"><CreditMeter balance={c.balance} limit={c.creditLimit} compact /></td>
-                <td className="px-4 py-3">{c.balance > 0 ? <Badge tone="danger" className="tnum">{formatMoney(c.balance)}</Badge> : c.balance < 0 ? <Badge tone="success" className="tnum">Avoir {formatMoney(-c.balance)}</Badge> : <Badge tone="success">À jour</Badge>}</td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => setStatementFor(c.id)}><FileText className="h-4 w-4" />Relevé</Button>
-                    {c.balance > 0 && <Button size="sm" variant="outline" onClick={() => setPayFor(c)}><HandCoins className="h-4 w-4" />Encaisser</Button>}
-                    <Button variant="ghost" size="icon" onClick={() => setEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => remove(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!shown.length && <tr><td colSpan={6} className="py-16 text-center text-muted-foreground">Aucun client.</td></tr>}
-          </tbody>
-        </table>
-      </section>
+      <DataGrid id="clients" data={clients} columns={columns} exportName="clients" searchPlaceholder="Rechercher par nom, adresse ou téléphone…"
+        presets={[
+          { label: 'Avec dette', filters: { balance: { min: '0.001' } } },
+          { label: 'Plafond ≥ 80 %', filters: { usage: { min: '80' } } },
+          { label: 'Sans crédit', filters: { creditLimit: { max: '0' } } }
+        ]}
+        onRowClick={(c) => setStatementFor(c.id)} />
 
       <ClientStatementDialog clientId={statementFor} onClose={() => setStatementFor(null)} onChanged={load} />
       <ClientDialog target={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />
