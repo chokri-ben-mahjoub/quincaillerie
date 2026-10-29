@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
+import { Database, DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { SHARE_PLACEHOLDERS, formatDocNumber, normalizePhone, renderTemplate, ty
 import { PAY_LABELS, type PayMethod } from '@shared/types'
 import { PERMISSIONS } from '@shared/permissions'
 import BackupPanel from '@/components/BackupPanel'
+import type { DemoReport, DemoStats } from '@shared/demo'
 
 // ---------- Organisation en onglets ----------
 const TABS = [
@@ -20,7 +21,8 @@ const TABS = [
   { id: 'partage', label: 'Partage', icon: Share2, ready: true },
   { id: 'utilisateurs', label: 'Utilisateurs / droits', icon: ShieldCheck, ready: true },
   { id: 'sauvegarde', label: 'Sauvegarde', icon: DatabaseBackup, ready: true },
-  { id: 'listes', label: 'Listes', icon: ListChecks, ready: true }
+  { id: 'listes', label: 'Listes', icon: ListChecks, ready: true },
+  { id: 'donnees', label: 'Données (démo)', icon: Database, ready: true }
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
@@ -598,6 +600,108 @@ function DroitsTab({ v, set }: TabProps) {
   )
 }
 
+// ---------- Onglet Données (démonstration et remise à zéro) ----------
+const STAT_LABELS: [keyof DemoStats, string][] = [['articles', 'Articles'], ['clients', 'Clients'], ['suppliers', 'Fournisseurs'], ['sales', 'Ventes'], ['purchases', 'Achats'],
+  ['invoices', 'Factures'], ['quotes', 'Devis'], ['orders', 'Bons de commande'], ['deliveries', 'Bons de livraison'], ['movements', 'Mouvements de stock']]
+
+function DonneesTab() {
+  const [stats, setStats] = useState<DemoStats | null>(null)
+  const [articles, setArticles] = useState('1000')
+  const [partners, setPartners] = useState(true)
+  const [purchases, setPurchases] = useState(true)
+  const [salesDays, setSalesDays] = useState('60')
+  const [documents, setDocuments] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [report, setReport] = useState<DemoReport | null>(null)
+  const [error, setError] = useState('')
+  const [keepSettings, setKeepSettings] = useState(true)
+  const [keepUsers, setKeepUsers] = useState(true)
+  const [confirmText, setConfirmText] = useState('')
+  const [resetMsg, setResetMsg] = useState('')
+
+  const refresh = useCallback(async () => { const r = await window.api.demo.stats(); if (r.ok) setStats(r.data) }, [])
+  useEffect(() => { refresh() }, [refresh])
+
+  async function generate() {
+    setBusy(true); setError(''); setReport(null)
+    await new Promise((r) => setTimeout(r, 50)) // laisse l'écran afficher « Génération en cours… »
+    const r = await window.api.demo.generate({ articles: Number(articles), partners, purchases, salesDays: Number(salesDays), documents })
+    setBusy(false)
+    if (r.ok) setReport(r.data); else setError(r.error)
+    refresh()
+  }
+
+  async function reset() {
+    setBusy(true); setError(''); setResetMsg('')
+    const r = await window.api.demo.reset({ keepSettings, keepUsers, confirm: confirmText })
+    setBusy(false)
+    if (!r.ok) return setError(r.error)
+    setResetMsg(`Base remise à zéro. Une sauvegarde a été faite avant : ${r.data.backup}. Rechargement…`)
+    setConfirmText(''); setReport(null)
+    setTimeout(() => window.location.reload(), 1500) // sans comptes conservés : retour à l'écran de première installation
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card title="État actuel de la base">
+        <div className="grid grid-cols-5 gap-3">
+          {STAT_LABELS.map(([k, label]) => (
+            <div key={k} className="rounded-md border bg-muted/40 px-3 py-2.5">
+              <div className="tnum text-xl font-semibold">{stats ? stats[k].toLocaleString('fr-FR') : '…'}</div>
+              <div className="text-xs text-muted-foreground">{label}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Générer des données de démonstration" hint="Articles réalistes de quincaillerie (codes-barres, prix, stocks, alertes) et activité complète pour tester tous les écrans. Les données s’ajoutent à l’existant.">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+          <div><Label>Nombre d’articles</Label>
+            <Select value={articles} onChange={(e) => setArticles(e.target.value)}>
+              {[0, 100, 250, 500, 1000, 2000].map((n) => <option key={n} value={n}>{n === 0 ? 'Aucun article' : `${n.toLocaleString('fr-FR')} articles`}</option>)}
+            </Select></div>
+          <div><Label>Historique de ventes</Label>
+            <Select value={salesDays} onChange={(e) => setSalesDays(e.target.value)}>
+              <option value="0">Aucune vente</option><option value="30">30 derniers jours</option><option value="60">60 derniers jours</option><option value="90">90 derniers jours</option>
+            </Select></div>
+          <Switch checked={partners} onChange={setPartners} label="Fournisseurs et clients" hint="12 fournisseurs et 45 clients (avec plafonds de crédit)." />
+          <Switch checked={purchases} onChange={setPurchases} label="Achats fournisseurs" hint="Réceptions de marchandise datées, dettes partielles." />
+          <Switch checked={documents} onChange={setDocuments} label="Documents" hint="Factures, devis (dont convertis), bons de commande et de livraison." />
+        </div>
+        <div className="mt-6 flex items-center gap-4">
+          <Button onClick={generate} disabled={busy}><Database className="h-4 w-4" />{busy ? 'Génération en cours…' : 'Générer la démo'}</Button>
+          {busy && <span className="text-sm text-muted-foreground">Quelques secondes, ne fermez pas l’application.</span>}
+        </div>
+        {report && (
+          <p className="mt-4 rounded-md bg-success/10 px-3 py-2 text-sm text-success">
+            Terminé en {(report.ms / 1000).toFixed(1)} s : {report.articles} article(s), {report.suppliers} fournisseur(s), {report.clients} client(s), {report.purchases} achat(s),
+            {' '}{report.sales} vente(s), {report.clientPayments} règlement(s), {report.invoices} facture(s), {report.quotes} devis, {report.orders} bon(s) de commande, {report.deliveries} bon(s) de livraison.
+          </p>
+        )}
+      </Card>
+
+      <section className="rounded-lg border border-destructive/40 bg-card p-6 shadow-soft">
+        <h2 className="font-semibold text-destructive">Vider la base (installation chez un client)</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Supprime tous les articles, ventes, achats, clients, fournisseurs, factures et mouvements, et remet les numérotations à 1. La base revient à l’état d’une première installation
+          (catégories par défaut). Une sauvegarde est faite automatiquement juste avant.
+        </p>
+        <div className="mt-5 space-y-3">
+          <Switch checked={keepSettings} onChange={setKeepSettings} label="Conserver les paramètres" hint="Société, logo, taxes, documents, droits… (décochez pour tout réinitialiser)." />
+          <Switch checked={keepUsers} onChange={setKeepUsers} label="Conserver les comptes utilisateurs" hint="Décochez pour repartir de l’écran de création de l’administrateur." />
+        </div>
+        <div className="mt-5 flex items-end gap-3">
+          <div className="w-64"><Label>Tapez VIDER pour confirmer</Label><Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="VIDER" /></div>
+          <Button variant="destructive" disabled={busy || confirmText !== 'VIDER'} onClick={reset}><Trash2 className="h-4 w-4" />Vider la base</Button>
+        </div>
+        {resetMsg && <p className="mt-4 rounded-md bg-success/10 px-3 py-2 text-sm text-success">{resetMsg}</p>}
+      </section>
+
+      {error && <p className="whitespace-pre-line rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+    </div>
+  )
+}
+
 // ---------- Page ----------
 export default function SettingsPage() {
   const [tab, setTab] = useState<TabId>('societe')
@@ -656,6 +760,7 @@ export default function SettingsPage() {
           {tab === 'sauvegarde' && <SauvegardeTab {...props} />}
           {tab === 'listes' && <ListesTab {...props} />}
           {tab === 'utilisateurs' && <DroitsTab {...props} />}
+          {tab === 'donnees' && <DonneesTab />}
         </div>
       </div>
 

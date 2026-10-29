@@ -13,6 +13,25 @@ export function getDb(): Database.Database {
   return db
 }
 
+/**
+ * Remet la base à l'état d'une première installation (nouveau fichier, schéma complet, catégories par défaut).
+ * Les paramètres et/ou les comptes utilisateurs peuvent être conservés.
+ */
+export function resetDatabase(keep: { settings: boolean; users: boolean }): void {
+  const settings = keep.settings ? (db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[]) : []
+  const users = keep.users ? (db.prepare('SELECT * FROM users').all() as Record<string, unknown>[]) : []
+  const file = join(dataDir(), 'quincaillerie.db')
+  db.close()
+  for (const ext of ['', '-wal', '-shm']) if (existsSync(file + ext)) unlinkSync(file + ext)
+  initDatabase()
+  const putSetting = db.prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+  const putUser = db.prepare('INSERT INTO users(id, username, full_name, password_hash, role, active, created_at) VALUES (@id, @username, @full_name, @password_hash, @role, @active, @created_at)')
+  db.transaction(() => {
+    for (const s of settings) putSetting.run(s.key, s.value)
+    for (const u of users) putUser.run(u)
+  })()
+}
+
 /** Ouvre la base (la crée si absente) puis applique les migrations manquantes. */
 export function initDatabase(): void {
   const file = join(dataDir(), 'quincaillerie.db')

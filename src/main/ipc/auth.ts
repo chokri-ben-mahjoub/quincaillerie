@@ -8,6 +8,7 @@ import type { AuthStatus, Result, Role, User, UserInput } from '@shared/types'
 // Utilisateur connecté (session tenue côté principal : l'interface ne peut pas la falsifier).
 let current: User | null = null
 export const currentUser = (): User | null => current
+export const clearSession = (): void => { current = null }
 
 // ---- Mots de passe : scrypt + sel aléatoire, jamais stockés en clair ----
 function hashPassword(pw: string): string {
@@ -35,7 +36,7 @@ export function isAllowed(channel: string): boolean {
   if (!current) return false
   if (current.role === 'admin') return true
   if (channel === 'app:config') return true // configuration de l'interface : tout utilisateur connecté
-  if (/^(users|backup|settings):/.test(channel)) return false // réservés à l'administrateur
+  if (/^(users|backup|settings|demo):/.test(channel)) return false // réservés à l'administrateur
   return channelGranted(grantedPermissions(current.role), channel)
 }
 

@@ -86,7 +86,7 @@ function validateInput(i: InvoiceInput): void {
 }
 
 /** Enregistre un brouillon (création ou remplacement des lignes). Hors brouillon, la base refuse (triggers). */
-function saveDoc(k: Kind, id: number | null, i: InvoiceInput): number {
+export function saveDoc(k: Kind, id: number | null, i: InvoiceInput): number {
   validateInput(i)
   const db = getDb()
   const company = getCompany()
@@ -113,7 +113,7 @@ function saveDoc(k: Kind, id: number | null, i: InvoiceInput): number {
 }
 
 /** Validation : attribue le numéro suivant (continu, par année) et fige le document. */
-function validateDoc(k: Kind, id: number): string {
+export function validateDoc(k: Kind, id: number): string {
   const db = getDb()
   return db.transaction(() => {
     const doc = db.prepare(`SELECT status, issue_date FROM ${k.head} WHERE id = ?`).get(id) as any
@@ -137,7 +137,7 @@ function validateDoc(k: Kind, id: number): string {
 }
 
 /** Devis -> brouillon de facture (mêmes lignes et client). Le devis passe à « converti » dans la même transaction. */
-function convertQuote(id: number): number {
+export function convertQuote(id: number): number {
   const db = getDb()
   return db.transaction(() => {
     const q = readDoc(KINDS.devis, id) as Quote

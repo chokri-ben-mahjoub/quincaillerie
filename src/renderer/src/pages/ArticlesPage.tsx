@@ -25,7 +25,7 @@ function Stat({ icon: Icon, label, value, tone }: { icon: typeof Boxes; label: s
       </div>
       <div>
         <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="tnum text-2xl font-semibold">{value}</div>
+        <div className={`tnum whitespace-nowrap font-semibold ${value.length > 12 ? "text-xl" : "text-2xl"}`}>{value}</div>
       </div>
     </div>
   )

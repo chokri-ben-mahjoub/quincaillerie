@@ -5,6 +5,7 @@ import { SETTING_DEFAULTS, SETTING_DEFS, validateSetting, type SettingsMap } fro
 
 /** Toutes les valeurs, avec la valeur par défaut pour les clés jamais modifiées. */
 let cache: SettingsMap | null = null // invalidé à chaque enregistrement
+export const invalidateSettingsCache = (): void => { cache = null }
 
 export function getSettings(): SettingsMap {
   if (cache) return cache

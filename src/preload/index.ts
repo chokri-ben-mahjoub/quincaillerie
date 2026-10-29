@@ -86,6 +86,11 @@ const api = {
     compose: (kind: string, id: number) => call('share:compose', kind, id),
     open: (req: unknown) => call('share:open', req)
   },
+  demo: {
+    stats: () => call('demo:stats'),
+    generate: (o: unknown) => call('demo:generate', o),
+    reset: (o: unknown) => call('demo:reset', o)
+  },
   app: {
     config: () => call('app:config')
   },

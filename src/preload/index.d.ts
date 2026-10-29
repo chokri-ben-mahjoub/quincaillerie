@@ -1,4 +1,5 @@
 import type { ShareDraft, ShareRequest } from '@shared/share'
+import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
 import type { CompanyInfo, Invoice, InvoiceInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
 import type { BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
@@ -86,6 +87,11 @@ declare global {
       share: {
         compose: (kind: string, id: number) => Promise<Result<ShareDraft>>
         open: (req: ShareRequest) => Promise<Result<{ url: string; pdfPath: string }>>
+      }
+      demo: {
+        stats: () => Promise<Result<DemoStats>>
+        generate: (o: DemoOptions) => Promise<Result<DemoReport>>
+        reset: (o: ResetOptions) => Promise<Result<{ backup: string }>>
       }
       app: {
         config: () => Promise<Result<AppConfig>>
