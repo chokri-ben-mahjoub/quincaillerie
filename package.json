@@ -1,0 +1,51 @@
+{
+  "name": "quincaillerie",
+  "version": "0.1.0",
+  "description": "Gestion de quincaillerie - application de bureau 100 % locale",
+  "main": "./out/main/index.js",
+  "author": "APBS",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "postinstall": "cd node_modules/better-sqlite3 && prebuild-install --runtime=electron --target=33.4.11 --arch=x64 || echo prebuilt-ignored",
+    "dist": "electron-vite build && electron-builder --win"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@tanstack/react-table": "^8.20.5",
+    "better-sqlite3": "^11.5.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.454.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.13.0",
+    "tailwind-merge": "^2.5.4",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  },
+  "build": {
+    "appId": "com.apbs.quincaillerie",
+    "productName": "Quincaillerie",
+    "files": ["out/**"],
+    "asarUnpack": ["**/*.node"],
+    "win": { "target": "nsis" }
+  }
+}

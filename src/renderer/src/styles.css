@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Thème : variables HSL (sans "hsl()") pour pouvoir utiliser l'opacité Tailwind. */
+@layer base {
+  :root {
+    --background: 220 25% 97%;
+    --foreground: 224 30% 12%;
+    --card: 0 0% 100%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 220 10% 42%;
+    --border: 220 16% 89%;
+    --input: 220 16% 84%;
+    --ring: 24 95% 53%;
+    --primary: 24 95% 50%;          /* orange atelier */
+    --primary-foreground: 0 0% 100%;
+    --accent: 24 95% 50%;
+    --destructive: 0 72% 51%;
+    --success: 152 60% 36%;
+    --warning: 38 92% 46%;
+    --sidebar: 226 38% 11%;         /* bleu nuit */
+    --shadow: 224 40% 10%;
+  }
+  .dark {
+    --background: 226 30% 8%;
+    --foreground: 220 20% 94%;
+    --card: 226 28% 12%;
+    --muted: 226 24% 16%;
+    --muted-foreground: 220 12% 62%;
+    --border: 226 22% 20%;
+    --input: 226 22% 26%;
+    --ring: 24 95% 58%;
+    --primary: 24 95% 56%;
+    --primary-foreground: 226 30% 8%;
+    --accent: 24 95% 56%;
+    --destructive: 0 75% 62%;
+    --success: 152 55% 50%;
+    --warning: 40 95% 58%;
+    --sidebar: 226 34% 6%;
+    --shadow: 0 0% 0%;
+  }
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 15px; /* un cran au-dessus du défaut pour une lecture confortable */
+  }
+  /* Chiffres alignés dans les tableaux */
+  .tnum { font-variant-numeric: tabular-nums; }
+}
+
+/* Impression du ticket : seul #ticket est visible, au format 80 mm. */
+@media print {
+  body * { visibility: hidden; }
+  #ticket, #ticket * { visibility: visible; }
+  #ticket { position: absolute; left: 0; top: 0; width: 72mm; color: #000; background: #fff; }
+  @page { margin: 4mm; }
+}
