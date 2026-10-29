@@ -44,8 +44,29 @@
   "build": {
     "appId": "com.apbs.quincaillerie",
     "productName": "Quincaillerie",
-    "files": ["out/**"],
-    "asarUnpack": ["**/*.node"],
-    "win": { "target": "nsis" }
+    "files": [
+      "out/**"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "npmRebuild": false,
+    "artifactName": "Quincaillerie-Setup-${version}.exe",
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "language": "1036"
+    }
   }
 }
