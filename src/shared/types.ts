@@ -152,8 +152,8 @@ export const ROLE_LABELS: Record<Role, string> = { admin: 'Administrateur', gera
 
 /** Pages visibles par rôle (l'accès réel est aussi contrôlé côté principal). */
 export const ROLE_PAGES: Record<Role, string[]> = {
-  admin: ['articles', 'caisse', 'stock', 'achats', 'clients', 'rapports', 'utilisateurs', 'sauvegarde'],
-  gerant: ['articles', 'caisse', 'stock', 'achats', 'clients', 'rapports'],
+  admin: ['articles', 'caisse', 'stock', 'achats', 'clients', 'rapports', 'utilisateurs', 'sauvegarde', 'factures', 'devis', 'commandes', 'livraisons'],
+  gerant: ['articles', 'caisse', 'stock', 'achats', 'clients', 'rapports', 'factures', 'devis', 'commandes', 'livraisons'],
   caissier: ['caisse']
 }
 
@@ -202,4 +202,9 @@ export interface ReportData {
   byMethod: { method: string; total: number }[]
   byCategory: { name: string; total: number }[]
   topArticles: { designation: string; quantity: number; total: number }[]
+}
+
+/** Ticket de caisse imprimable : le reçu de la vente + le caissier. */
+export interface Ticket extends Receipt {
+  cashier: string | null
 }

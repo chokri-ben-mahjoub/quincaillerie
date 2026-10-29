@@ -8,6 +8,10 @@ import AchatsPage from '@/pages/AchatsPage'
 import ClientsPage from '@/pages/ClientsPage'
 import RapportsPage from '@/pages/RapportsPage'
 import UsersPage from '@/pages/UsersPage'
+import FacturesPage from '@/pages/FacturesPage'
+import DevisPage from '@/pages/DevisPage'
+import CommandesPage from '@/pages/CommandesPage'
+import LivraisonsPage from '@/pages/LivraisonsPage'
 import BackupPage from '@/pages/BackupPage'
 import LoginPage from '@/pages/LoginPage'
 import { ROLE_PAGES, type User } from '@shared/types'
@@ -57,7 +61,11 @@ export default function App() {
     clients: <ClientsPage />,
     rapports: <RapportsPage />,
     utilisateurs: <UsersPage />,
-    sauvegarde: <BackupPage />
+    sauvegarde: <BackupPage />,
+    factures: <FacturesPage />,
+    devis: <DevisPage />,
+    commandes: <CommandesPage />,
+    livraisons: <LivraisonsPage />
   }
 
   return (

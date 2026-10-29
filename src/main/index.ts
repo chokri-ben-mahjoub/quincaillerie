@@ -8,6 +8,8 @@ import { registerPurchaseHandlers } from './ipc/purchases'
 import { registerClientHandlers } from './ipc/clients'
 import { registerReportHandlers } from './ipc/reports'
 import { registerBackupHandlers, startBackupScheduler } from './ipc/backup'
+import { registerInvoiceHandlers } from './ipc/invoices'
+import { registerTicketHandlers } from './ipc/tickets'
 import { installGuard, registerAuthHandlers } from './ipc/auth'
 
 function createWindow(): void {
@@ -40,6 +42,8 @@ app.whenReady().then(() => {
   installGuard() // doit précéder tous les enregistrements IPC
   registerAuthHandlers()
   registerBackupHandlers()
+  registerInvoiceHandlers()
+  registerTicketHandlers()
   startBackupScheduler()
   registerArticleHandlers()
   registerStockHandlers()

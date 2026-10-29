@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { CompanyInfo, InvoiceInput } from '@shared/invoice'
 import type { ArticleInput, MovementInput, SaleInput, PurchaseInput, SupplierInput, ClientInput, UserInput } from '@shared/types'
 
 // Pont sécurisé : seules ces fonctions sont exposées à l'interface (window.api).
@@ -24,6 +25,55 @@ const api = {
     setup: (u: UserInput) => call('auth:setup', u),
     login: (username: string, password: string) => call('auth:login', username, password),
     logout: () => call('auth:logout')
+  },
+  invoices: {
+    list: () => call('invoices:list'),
+    get: (id: number) => call('invoices:get', id),
+    save: (id: number | null, i: InvoiceInput) => call('invoices:save', id, i),
+    validate: (id: number) => call('invoices:validate', id),
+    remove: (id: number) => call('invoices:delete', id),
+    preview: (id: number) => call('invoices:preview', id),
+    exportPdf: (id: number) => call('invoices:export', id)
+  },
+  quotes: {
+    list: () => call('quotes:list'),
+    get: (id: number) => call('quotes:get', id),
+    save: (id: number | null, i: InvoiceInput) => call('quotes:save', id, i),
+    validate: (id: number) => call('quotes:validate', id),
+    remove: (id: number) => call('quotes:delete', id),
+    preview: (id: number) => call('quotes:preview', id),
+    exportPdf: (id: number) => call('quotes:export', id),
+    setStatus: (id: number, status: 'accepte' | 'refuse') => call('quotes:setStatus', id, status),
+    convert: (id: number) => call('quotes:convert', id)
+  },
+  orders: {
+    list: () => call('orders:list'),
+    get: (id: number) => call('orders:get', id),
+    save: (id: number | null, i: InvoiceInput) => call('orders:save', id, i),
+    validate: (id: number) => call('orders:validate', id),
+    remove: (id: number) => call('orders:delete', id),
+    preview: (id: number) => call('orders:preview', id),
+    exportPdf: (id: number) => call('orders:export', id),
+    setReceived: (id: number) => call('orders:setReceived', id)
+  },
+  deliveries: {
+    list: () => call('deliveries:list'),
+    get: (id: number) => call('deliveries:get', id),
+    save: (id: number | null, i: InvoiceInput) => call('deliveries:save', id, i),
+    validate: (id: number) => call('deliveries:validate', id),
+    remove: (id: number) => call('deliveries:delete', id),
+    preview: (id: number) => call('deliveries:preview', id),
+    exportPdf: (id: number) => call('deliveries:export', id),
+    setDelivered: (id: number) => call('deliveries:setDelivered', id)
+  },
+  tickets: {
+    print: (saleId: number, received?: number) => call('tickets:print', saleId, received),
+    preview: (saleId: number, received?: number) => call('tickets:preview', saleId, received),
+    exportPdf: (saleId: number, received?: number) => call('tickets:export', saleId, received)
+  },
+  company: {
+    get: () => call('company:get'),
+    set: (c: CompanyInfo) => call('company:set', c)
   },
   backup: {
     list: () => call('backup:list'),

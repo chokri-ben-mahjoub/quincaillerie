@@ -1,3 +1,4 @@
+import type { CompanyInfo, Invoice, InvoiceInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
 import type { BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
 
 // Typage de window.api côté interface.
@@ -23,6 +24,55 @@ declare global {
         setup: (u: UserInput) => Promise<Result<User>>
         login: (username: string, password: string) => Promise<Result<User>>
         logout: () => Promise<Result<void>>
+      }
+      invoices: {
+        list: () => Promise<Result<InvoiceSummary[]>>
+        get: (id: number) => Promise<Result<Invoice>>
+        save: (id: number | null, i: InvoiceInput) => Promise<Result<number>>
+        validate: (id: number) => Promise<Result<string>>
+        remove: (id: number) => Promise<Result<void>>
+        preview: (id: number) => Promise<Result<void>>
+        exportPdf: (id: number) => Promise<Result<string | null>>
+      }
+      quotes: {
+        list: () => Promise<Result<QuoteSummary[]>>
+        get: (id: number) => Promise<Result<Quote>>
+        save: (id: number | null, i: InvoiceInput) => Promise<Result<number>>
+        validate: (id: number) => Promise<Result<string>>
+        remove: (id: number) => Promise<Result<void>>
+        preview: (id: number) => Promise<Result<void>>
+        exportPdf: (id: number) => Promise<Result<string | null>>
+        setStatus: (id: number, status: 'accepte' | 'refuse') => Promise<Result<void>>
+        convert: (id: number) => Promise<Result<number>>
+      }
+      orders: {
+        list: () => Promise<Result<OrderSummary[]>>
+        get: (id: number) => Promise<Result<Order>>
+        save: (id: number | null, i: InvoiceInput) => Promise<Result<number>>
+        validate: (id: number) => Promise<Result<string>>
+        remove: (id: number) => Promise<Result<void>>
+        preview: (id: number) => Promise<Result<void>>
+        exportPdf: (id: number) => Promise<Result<string | null>>
+        setReceived: (id: number) => Promise<Result<void>>
+      }
+      deliveries: {
+        list: () => Promise<Result<DeliverySummary[]>>
+        get: (id: number) => Promise<Result<Delivery>>
+        save: (id: number | null, i: InvoiceInput) => Promise<Result<number>>
+        validate: (id: number) => Promise<Result<string>>
+        remove: (id: number) => Promise<Result<void>>
+        preview: (id: number) => Promise<Result<void>>
+        exportPdf: (id: number) => Promise<Result<string | null>>
+        setDelivered: (id: number) => Promise<Result<void>>
+      }
+      tickets: {
+        print: (saleId: number, received?: number) => Promise<Result<boolean>>
+        preview: (saleId: number, received?: number) => Promise<Result<void>>
+        exportPdf: (saleId: number, received?: number) => Promise<Result<string | null>>
+      }
+      company: {
+        get: () => Promise<Result<CompanyInfo>>
+        set: (c: CompanyInfo) => Promise<Result<void>>
       }
       backup: {
         list: () => Promise<Result<BackupInfo[]>>

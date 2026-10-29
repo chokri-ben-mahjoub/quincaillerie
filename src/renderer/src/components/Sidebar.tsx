@@ -1,10 +1,14 @@
 import { ROLE_LABELS, type User } from '@shared/types'
-import { BarChart3, DatabaseBackup, Hammer, LogOut, Moon, Package, ShoppingCart, Sun, Truck, Users, UserCog, Warehouse } from 'lucide-react'
+import { BarChart3, ClipboardCheck, ClipboardList, DatabaseBackup, FileSignature, FileText, Hammer, LogOut, Moon, Package, ShoppingCart, Sun, Truck, Users, UserCog, Warehouse } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export const NAV = [
   { id: 'articles', label: 'Articles', icon: Package },
   { id: 'caisse', label: 'Caisse', icon: ShoppingCart },
+  { id: 'devis', label: 'Devis', icon: FileSignature },
+  { id: 'factures', label: 'Factures', icon: FileText },
+  { id: 'commandes', label: 'Bons de commande', icon: ClipboardList },
+  { id: 'livraisons', label: 'Bons de livraison', icon: ClipboardCheck },
   { id: 'stock', label: 'Stock', icon: Warehouse },
   { id: 'achats', label: 'Achats', icon: Truck },
   { id: 'clients', label: 'Clients', icon: Users },

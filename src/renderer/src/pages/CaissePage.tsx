@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Banknote, Check, CreditCard, Minus, Plus, Printer, ScanBarcode, Trash2, FileText, Users } from 'lucide-react'
+import { Banknote, Check, CreditCard, Minus, Plus, Printer, Eye, Download, ScanBarcode, Trash2, FileText, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
@@ -263,6 +263,7 @@ export default function CaissePage() {
 }
 
 function TicketDialog({ receipt, onClose }: { receipt: Receipt | null; onClose: () => void }) {
+  const [printError, setPrintError] = useState('')
   return (
     <Dialog open={!!receipt} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
@@ -292,8 +293,11 @@ function TicketDialog({ receipt, onClose }: { receipt: Receipt | null; onClose: 
               {receipt.change > 0 && <div className="flex justify-between"><span>Rendu</span><span>{receipt.change.toFixed(3)}</span></div>}
               <div className="mt-2 text-center">Merci de votre visite !</div>
             </div>
+            {printError && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{printError}</p>}
             <div className="mt-4 flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => window.print()}><Printer className="h-4 w-4" />Imprimer</Button>
+              <Button variant="outline" className="flex-1" onClick={async () => { const r = await window.api.tickets.print(receipt.id, receipt.received); if (!r.ok) setPrintError(r.error) }}><Printer className="h-4 w-4" />Imprimer</Button>
+              <Button variant="outline" size="icon" title="Aperçu 80 mm" onClick={() => window.api.tickets.preview(receipt.id, receipt.received)}><Eye className="h-4 w-4" /></Button>
+              <Button variant="outline" size="icon" title="Exporter en PDF" onClick={() => window.api.tickets.exportPdf(receipt.id, receipt.received)}><Download className="h-4 w-4" /></Button>
               <Button className="flex-1" autoFocus onClick={onClose}>Nouvelle vente</Button>
             </div>
           </>
