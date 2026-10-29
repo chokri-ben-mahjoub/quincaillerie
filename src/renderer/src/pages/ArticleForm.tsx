@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useAppConfig } from '@/lib/useAppConfig'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
 import { UNITS, type Article, type ArticleInput, type Category } from '@shared/types'
@@ -23,6 +24,7 @@ export default function ArticleForm({ open, article, categories, onClose, onSave
   const [saving, setSaving] = useState(false)
 
   // Remplit le formulaire à l'ouverture (édition) ou le vide (création).
+  const cfg = useAppConfig()
   useEffect(() => {
     if (!open) return
     setError('')
@@ -31,9 +33,9 @@ export default function ArticleForm({ open, article, categories, onClose, onSave
         ? { barcode: article.barcode, designation: article.designation, categoryId: article.categoryId,
             unit: article.unit, purchasePrice: article.purchasePrice, salePrice: article.salePrice,
             minStock: article.minStock }
-        : EMPTY
+        : { ...EMPTY, unit: cfg.stockDefaultUnit, minStock: cfg.stockDefaultMin } // valeurs par défaut des paramètres
     )
-  }, [open, article])
+  }, [open, article, cfg])
 
   const set = <K extends keyof ArticleInput>(k: K, v: ArticleInput[K]) => setForm((f) => ({ ...f, [k]: v }))
   const numberField = (k: 'purchasePrice' | 'salePrice' | 'minStock' | 'initialStock') => ({

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
 import { cn, formatMoney, formatQty } from '@/lib/utils'
+import { useAppConfig } from '@/lib/useAppConfig'
 import { PAY_LABELS, type Article, type Client, type PayMethod, type Receipt } from '@shared/types'
 
 interface CartLine { article: Article; quantity: number }
@@ -16,6 +17,7 @@ const Key = ({ children }: { children: React.ReactNode }) => (
 )
 
 export default function CaissePage() {
+  const cfg = useAppConfig()
   const [articles, setArticles] = useState<Article[]>([])
   const [cart, setCart] = useState<CartLine[]>([])
   const [scan, setScan] = useState('')
@@ -38,6 +40,8 @@ export default function CaissePage() {
     if (c.ok) setClients(c.data)
   }, [])
   useEffect(() => { load(); scanRef.current?.focus() }, [load])
+  // Le mode de paiement par défaut vient des paramètres (chargés après l'affichage).
+  useEffect(() => setMethod(cfg.defaultMethod as PayMethod), [cfg.defaultMethod])
 
   const byBarcode = useMemo(() => new Map(articles.map((a) => [a.barcode, a])), [articles])
   const suggestions = scan.trim().length >= 2 && !byBarcode.has(scan.trim())
@@ -78,9 +82,9 @@ export default function CaissePage() {
     setCart((c) => c.map((l) => (l.article.id === id ? { ...l, quantity: Math.max(q, 0.001) } : l)))
   const remove = (id: number) => setCart((c) => c.filter((l) => l.article.id !== id))
   const reset = useCallback(() => {
-    setCart([]); setDiscount(0); setReceived(0); setMethod('especes'); setClientId(null); setError(''); setScan('')
+    setCart([]); setDiscount(0); setReceived(0); setMethod(cfg.defaultMethod as PayMethod); setClientId(null); setError(''); setScan('')
     scanRef.current?.focus()
-  }, [])
+  }, [cfg.defaultMethod])
 
   async function pay() {
     if (!canPay) return
@@ -156,8 +160,8 @@ export default function CaissePage() {
                 <tr key={a.id} className="border-b last:border-0">
                   <td className="px-4 py-3">
                     <div className="font-medium">{a.designation}</div>
-                    <div className={cn('text-xs', quantity > a.stock ? 'text-destructive' : 'text-muted-foreground')}>
-                      Stock : {formatQty(a.stock)} {a.unit}{quantity > a.stock && ' — insuffisant'}
+                    <div className={cn('text-xs', quantity > a.stock ? (cfg.allowBelowStock ? 'text-warning' : 'text-destructive') : 'text-muted-foreground')}>
+                      Stock : {formatQty(a.stock)} {a.unit}{quantity > a.stock && (cfg.allowBelowStock ? ' — sous stock' : ' — insuffisant')}
                     </div>
                   </td>
                   <td className="tnum px-4 py-3">{formatMoney(a.salePrice)}</td>
@@ -188,7 +192,7 @@ export default function CaissePage() {
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Remise (DT)</span>
             <Input ref={discountRef} type="number" step="0.001" min="0" className="h-9 w-32 text-right" value={discount}
-              onChange={(e) => setDiscount(Math.min(parseFloat(e.target.value) || 0, subtotal))} />
+              onChange={(e) => setDiscount(Math.min(parseFloat(e.target.value) || 0, subtotal * cfg.maxDiscountPct / 100))} />
           </div>
         </div>
 
@@ -199,8 +203,8 @@ export default function CaissePage() {
 
         <div>
           <Label>Mode de paiement</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {(Object.keys(PAY_LABELS) as PayMethod[]).map((m) => {
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            {(Object.keys(PAY_LABELS) as PayMethod[]).filter((m) => cfg.paymentMethods.includes(m)).map((m) => {
               const Icon = METHOD_ICONS[m]
               return (
                 <button key={m} onClick={() => setMethod(m)}

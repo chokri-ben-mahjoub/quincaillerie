@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label } from '@/components/ui/input'
 import { formatMoney } from '@/lib/utils'
+import { useAppConfig } from '@/lib/useAppConfig'
 import type { Client, ClientInput } from '@shared/types'
 
 const EMPTY: ClientInput = { name: '', phone: '', address: '', creditLimit: 0 }
@@ -100,13 +101,14 @@ export default function ClientsPage() {
 }
 
 function ClientDialog({ target, onClose, onSaved }: { target: Client | 'new' | null; onClose: () => void; onSaved: () => void }) {
+  const cfg = useAppConfig()
   const [f, setF] = useState<ClientInput>(EMPTY)
   const [error, setError] = useState('')
   useEffect(() => {
     if (!target) return
     setError('')
-    setF(target === 'new' ? EMPTY : { name: target.name, phone: target.phone ?? '', address: target.address ?? '', creditLimit: target.creditLimit })
-  }, [target])
+    setF(target === 'new' ? { ...EMPTY, creditLimit: cfg.creditDefaultLimit } : { name: target.name, phone: target.phone ?? '', address: target.address ?? '', creditLimit: target.creditLimit })
+  }, [target, cfg])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()

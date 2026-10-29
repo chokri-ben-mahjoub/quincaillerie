@@ -30,8 +30,12 @@ export function saveSettings(changes: Record<string, unknown>): SettingsMap {
   }
   if (errors.length) throw new Error(errors.join('\n'))
 
-  // Règle croisée : le taux par défaut doit faire partie des taux proposés.
   const merged = { ...getSettings(), ...clean }
+  // Règle croisée : le mode de paiement par défaut doit être activé.
+  if (!merged.sales_payment_methods.split(',').includes(merged.sales_default_method))
+    throw new Error('Le mode de paiement par défaut doit faire partie des modes activés.')
+
+  // Règle croisée : le taux par défaut doit faire partie des taux proposés.
   if (!merged.tax_rates.split(',').map(Number).includes(Number(merged.tax_default_rate)))
     throw new Error('Le taux de TVA par défaut doit figurer dans la liste des taux.')
 

@@ -74,6 +74,9 @@ const api = {
   company: {
     get: () => call('company:get')
   },
+  app: {
+    config: () => call('app:config')
+  },
   settings: {
     getAll: () => call('settings:getAll'),
     set: (changes: Record<string, string>) => call('settings:set', changes)

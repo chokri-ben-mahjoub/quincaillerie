@@ -22,7 +22,7 @@ function checkPassword(pw: string, stored: string): boolean {
 const mapUser = (r: any): User => ({ id: r.id, username: r.username, fullName: r.full_name, role: r.role, active: !!r.active })
 
 // ---- Droits par rôle (appliqués à chaque appel IPC, voir installGuard) ----
-const CASHIER_CHANNELS = ['sales:create', 'articles:list', 'clients:list', 'categories:list', 'tickets:print', 'tickets:preview', 'tickets:export']
+const CASHIER_CHANNELS = ['sales:create', 'articles:list', 'clients:list', 'categories:list', 'app:config', 'tickets:print', 'tickets:preview', 'tickets:export']
 
 export function isAllowed(channel: string): boolean {
   if (channel.startsWith('auth:')) return true

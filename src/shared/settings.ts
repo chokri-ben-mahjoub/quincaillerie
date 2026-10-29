@@ -2,7 +2,9 @@
 // qui sert à le valider. La table `settings` (clé/valeur) ne contient que les valeurs modifiées :
 // toute clé absente retombe sur sa valeur par défaut ci-dessous (donc « rien en dur » ailleurs dans le code).
 
-export type SettingType = 'text' | 'multiline' | 'int' | 'percent' | 'money' | 'color' | 'bool' | 'rates' | 'choice' | 'image' | 'prefix'
+import { UNITS } from './types'
+
+export type SettingType = 'list' | 'number' | 'text' | 'multiline' | 'int' | 'percent' | 'money' | 'color' | 'bool' | 'rates' | 'choice' | 'image' | 'prefix'
 
 export interface SettingDef {
   key: string
@@ -53,7 +55,20 @@ export const SETTING_DEFS: SettingDef[] = [
   def('tax_default_rate', '19', 'percent'),
   def('tax_timbre_amount', '1.000', 'money'), // droit de timbre, en dinars
   def('tax_timbre_default', '1', 'bool'), // coché par défaut sur les nouvelles factures
-  def('tax_prices_mode', 'HT', 'choice', { options: ['HT', 'TTC'] }) // les prix du catalogue sont-ils HT ou TTC ?
+  def('tax_prices_mode', 'HT', 'choice', { options: ['HT', 'TTC'] }), // les prix du catalogue sont-ils HT ou TTC ?
+
+  // ----- Ventes -----
+  def('sales_max_discount_pct', '100', 'percent'), // remise maximale d'un caissier (gérant et admin : sans limite)
+  def('sales_payment_methods', 'especes,carte,cheque,credit', 'list', { options: ['especes', 'carte', 'cheque', 'credit'] }),
+  def('sales_default_method', 'especes', 'choice', { options: ['especes', 'carte', 'cheque', 'credit'] }),
+  def('sales_allow_below_stock', '0', 'bool'), // autoriser la vente quand le stock est insuffisant
+  def('sales_credit_default_limit', '0.000', 'money'), // plafond de crédit proposé pour un nouveau client
+
+  // ----- Stock -----
+  def('stock_default_min', '0', 'number'), // seuil d'alerte proposé pour un nouvel article
+  def('stock_default_unit', 'pièce', 'choice', { options: [...UNITS] }),
+  def('stock_alerts_enabled', '1', 'bool'),
+  def('stock_alert_margin_pct', '0', 'int', { min: 0, max: 200 }) // alerte dès seuil + X %
 ]
 
 export type SettingsMap = Record<string, string>
@@ -78,6 +93,13 @@ export function validateSetting(d: SettingDef, raw: unknown): ValidationResult {
     case 'int':
       return Number.isInteger(num) && s !== '' && num >= (d.min ?? 0) && num <= (d.max ?? 1e9)
         ? { ok: true, value: String(num) } : fail(`Entier entre ${d.min} et ${d.max}.`)
+    case 'number':
+      return s !== '' && num >= 0 && num <= 1_000_000 ? { ok: true, value: String(num) } : fail('Nombre positif.')
+    case 'list': {
+      const items = s.split(',').map((x) => x.trim()).filter(Boolean)
+      if (!items.length || items.some((x) => !d.options!.includes(x))) return fail('Au moins un choix valide.')
+      return { ok: true, value: d.options!.filter((o) => items.includes(o)).join(',') } // ordre canonique
+    }
     case 'percent':
       return s !== '' && num >= 0 && num <= 100 ? { ok: true, value: String(num) } : fail('Pourcentage entre 0 et 100.')
     case 'money':
@@ -108,4 +130,29 @@ export function formatDocNumber(
   if (o.includeYear) parts.push(String(year))
   parts.push(String(seq).padStart(o.digits, '0'))
   return parts.join(o.separator)
+}
+
+// ---------- Configuration lue par l'interface (tout rôle connecté) ----------
+export interface AppConfig {
+  maxDiscountPct: number // remise maximale pour l'utilisateur courant
+  paymentMethods: string[]
+  defaultMethod: string
+  allowBelowStock: boolean
+  creditDefaultLimit: number
+  stockDefaultMin: number
+  stockDefaultUnit: string
+  alertsEnabled: boolean
+  alertMarginPct: number
+}
+
+export const DEFAULT_APP_CONFIG: AppConfig = {
+  maxDiscountPct: 100, paymentMethods: ['especes', 'carte', 'cheque', 'credit'], defaultMethod: 'especes', allowBelowStock: false,
+  creditDefaultLimit: 0, stockDefaultMin: 0, stockDefaultUnit: 'pièce', alertsEnabled: true, alertMarginPct: 0
+}
+
+/** Niveau de stock d'un article : rupture, bas (alerte) ou normal. L'alerte se déclenche à seuil + marge %. */
+export function stockLevel(stock: number, min: number, cfg: Pick<AppConfig, 'alertsEnabled' | 'alertMarginPct'>): 'out' | 'low' | 'ok' {
+  if (stock <= 0) return 'out'
+  if (cfg.alertsEnabled && min > 0 && stock <= min * (1 + cfg.alertMarginPct / 100)) return 'low'
+  return 'ok'
 }

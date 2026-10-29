@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input, Select } from '@/components/ui/input'
 import { formatMoney, formatQty } from '@/lib/utils'
 import ArticleForm from './ArticleForm'
+import { useAppConfig } from '@/lib/useAppConfig'
+import { stockLevel } from '@shared/settings'
 import type { Article, Category, ImportReport } from '@shared/types'
 
 const col = createColumnHelper<Article>()
@@ -41,6 +43,7 @@ export default function ArticlesPage() {
   const [toDelete, setToDelete] = useState<Article | null>(null)
   const [report, setReport] = useState<ImportReport | null>(null)
   const [message, setMessage] = useState('')
+  const cfg = useAppConfig()
 
   const load = useCallback(async () => {
     const [a, c] = await Promise.all([window.api.articles.list(), window.api.categories.list()])
@@ -52,16 +55,16 @@ export default function ArticlesPage() {
   // Filtres appliqués avant le tableau (catégorie + alertes) ; la recherche texte est gérée par TanStack.
   const data = useMemo(
     () => articles.filter((a) =>
-      (!categoryFilter || String(a.categoryId) === categoryFilter) && (!alertOnly || a.stock <= a.minStock)),
-    [articles, categoryFilter, alertOnly]
+      (!categoryFilter || String(a.categoryId) === categoryFilter) && (!alertOnly || stockLevel(a.stock, a.minStock, cfg) !== 'ok')),
+    [articles, categoryFilter, alertOnly, cfg]
   )
 
   const stats = useMemo(() => ({
     total: articles.length,
     value: articles.reduce((s, a) => s + Math.max(a.stock, 0) * a.purchasePrice, 0),
-    low: articles.filter((a) => a.stock > 0 && a.stock <= a.minStock).length,
+    low: articles.filter((a) => stockLevel(a.stock, a.minStock, cfg) === 'low').length,
     out: articles.filter((a) => a.stock <= 0).length
-  }), [articles])
+  }), [articles, cfg])
 
   const columns = useMemo(() => [
     col.accessor('barcode', { header: 'Code-barres', cell: (c) => <span className="font-mono text-[13px] text-muted-foreground">{c.getValue()}</span> }),
@@ -73,7 +76,8 @@ export default function ArticlesPage() {
       header: 'Stock',
       cell: (c) => {
         const a = c.row.original
-        const tone = a.stock <= 0 ? 'danger' : a.stock <= a.minStock ? 'warning' : 'success'
+        const lv = stockLevel(a.stock, a.minStock, cfg)
+        const tone = lv === 'out' ? 'danger' : lv === 'low' ? 'warning' : 'success'
         return <Badge tone={tone} className="tnum">{formatQty(a.stock)} {a.unit}</Badge>
       }
     }),
@@ -91,7 +95,7 @@ export default function ArticlesPage() {
         </div>
       )
     })
-  ], [])
+  ], [cfg])
 
   const table = useReactTable({
     data, columns,

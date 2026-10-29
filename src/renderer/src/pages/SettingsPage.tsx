@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Building2, FileText, ImagePlus, Percent, Plus, Trash2, X } from 'lucide-react'
+import { Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { formatDocNumber, type SettingsMap } from '@shared/settings'
+import { PAY_LABELS, UNITS, type PayMethod } from '@shared/types'
 
 // ---------- Organisation en onglets ----------
 const TABS = [
   { id: 'societe', label: 'Société', icon: Building2, ready: true },
   { id: 'documents', label: 'Documents', icon: FileText, ready: true },
   { id: 'taxes', label: 'Taxes', icon: Percent, ready: true },
-  { id: 'ventes', label: 'Ventes', ready: false },
-  { id: 'stock', label: 'Stock', ready: false },
+  { id: 'ventes', label: 'Ventes', icon: ShoppingCart, ready: true },
+  { id: 'stock', label: 'Stock', icon: Warehouse, ready: true },
   { id: 'impression', label: 'Impression', ready: false },
   { id: 'partage', label: 'Partage', ready: false },
   { id: 'utilisateurs', label: 'Utilisateurs / droits', ready: false },
@@ -253,6 +254,89 @@ function TaxesTab({ v, set }: TabProps) {
   )
 }
 
+// ---------- Onglet Ventes ----------
+function VentesTab({ v, set }: TabProps) {
+  const methods = v.sales_payment_methods.split(',').filter(Boolean)
+  const toggle = (m: string, on: boolean) => {
+    const next = on ? [...methods, m] : methods.filter((x) => x !== m)
+    if (!next.length) return // au moins un mode de paiement
+    set('sales_payment_methods', next.join(','))
+    if (!next.includes(v.sales_default_method)) set('sales_default_method', next[0])
+  }
+  return (
+    <div className="space-y-6">
+      <Card title="Remises" hint="Limite appliquée aux caissiers. Le gérant et l’administrateur n’ont pas de limite.">
+        <div className="w-64">
+          <Label>Remise maximale (% du total)</Label>
+          <Input type="number" min={0} max={100} value={v.sales_max_discount_pct} onChange={(e) => set('sales_max_discount_pct', e.target.value)} />
+          <p className="mt-1.5 text-xs text-muted-foreground">0 = aucune remise autorisée à la caisse.</p>
+        </div>
+      </Card>
+
+      <Card title="Modes de paiement" hint="Modes proposés à la caisse. Le crédit demande un client avec un plafond.">
+        <div className="space-y-3">
+          {(Object.keys(PAY_LABELS) as PayMethod[]).map((m) => (
+            <Switch key={m} checked={methods.includes(m)} onChange={(on) => toggle(m, on)} label={PAY_LABELS[m]} />
+          ))}
+        </div>
+        <div className="mt-5 w-64">
+          <Label>Mode par défaut</Label>
+          <Select value={v.sales_default_method} onChange={(e) => set('sales_default_method', e.target.value)}>
+            {methods.map((m) => <option key={m} value={m}>{PAY_LABELS[m as PayMethod]}</option>)}
+          </Select>
+        </div>
+      </Card>
+
+      <Card title="Stock insuffisant">
+        <Switch checked={v.sales_allow_below_stock === '1'} onChange={(b) => set('sales_allow_below_stock', b ? '1' : '0')}
+          label="Autoriser la vente sous stock" hint="Permet de vendre un article dont le stock est insuffisant : le stock devient négatif jusqu’à la prochaine réception." />
+      </Card>
+
+      <Card title="Crédit clients">
+        <div className="w-64">
+          <Label>Plafond proposé pour un nouveau client (DT)</Label>
+          <Input type="number" step="0.001" min={0} value={v.sales_credit_default_limit} onChange={(e) => set('sales_credit_default_limit', e.target.value)} />
+          <p className="mt-1.5 text-xs text-muted-foreground">0 = pas de crédit par défaut.</p>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+// ---------- Onglet Stock ----------
+function StockTab({ v, set }: TabProps) {
+  const min = 10
+  const margin = Number(v.stock_alert_margin_pct) || 0
+  return (
+    <div className="space-y-6">
+      <Card title="Nouveaux articles" hint="Valeurs proposées à la création d’un article et à l’import Excel quand la colonne est vide.">
+        <div className="grid grid-cols-2 gap-4">
+          <div><Label>Seuil d’alerte par défaut</Label>
+            <Input type="number" min={0} step="0.001" value={v.stock_default_min} onChange={(e) => set('stock_default_min', e.target.value)} /></div>
+          <div><Label>Unité par défaut</Label>
+            <Select value={v.stock_default_unit} onChange={(e) => set('stock_default_unit', e.target.value)}>
+              {UNITS.map((u) => <option key={u}>{u}</option>)}
+            </Select></div>
+        </div>
+      </Card>
+
+      <Card title="Alertes de stock" hint="Un article passe en alerte quand son stock atteint le seuil ; la rupture (stock ≤ 0) est toujours signalée.">
+        <div className="space-y-5">
+          <Switch checked={v.stock_alerts_enabled === '1'} onChange={(b) => set('stock_alerts_enabled', b ? '1' : '0')}
+            label="Activer les alertes de stock bas" hint="Badges orange, compteur « Stock faible » et onglet Alertes du module Stock." />
+          <div className={cn('w-64', v.stock_alerts_enabled !== '1' && 'pointer-events-none opacity-50')}>
+            <Label>Prévenir à l’avance (+ %)</Label>
+            <Input type="number" min={0} max={200} value={v.stock_alert_margin_pct} onChange={(e) => set('stock_alert_margin_pct', e.target.value)} />
+          </div>
+          <p className="rounded-md bg-muted px-3 py-2 text-sm">
+            Exemple : un article avec un seuil de <b>{min}</b> passe en alerte dès <b>{(min * (1 + margin / 100)).toLocaleString('fr-FR', { maximumFractionDigits: 3 })}</b> en stock.
+          </p>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 // ---------- Page ----------
 export default function SettingsPage() {
   const [tab, setTab] = useState<TabId>('societe')
@@ -304,6 +388,8 @@ export default function SettingsPage() {
           {tab === 'societe' && <SocieteTab {...props} />}
           {tab === 'documents' && <DocumentsTab {...props} />}
           {tab === 'taxes' && <TaxesTab {...props} />}
+          {tab === 'ventes' && <VentesTab {...props} />}
+          {tab === 'stock' && <StockTab {...props} />}
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { getDb } from '../db'
 import { currentUser } from './auth'
+import { getSettings } from '../settings'
 import { fromMillimes, toMillimes } from '@shared/money'
 import type { Receipt, Result, SaleInput } from '@shared/types'
 
@@ -14,13 +15,15 @@ function createSale(input: SaleInput): Receipt {
   if (!input.items.length) throw new Error('Le panier est vide.')
 
   return db.transaction((): Receipt => {
+    const cfg = getSettings() // règles de vente lues dans les paramètres (Paramètres > Ventes)
+    if (!cfg.sales_payment_methods.split(',').includes(input.method)) throw new Error('Mode de paiement non autorisé.')
     const getArticle = db.prepare(
       'SELECT id, designation, unit, sale_price, purchase_price, stock FROM articles WHERE id = ? AND active = 1')
     const lines = input.items.map((it) => {
       const a = getArticle.get(it.articleId) as any
       if (!a) throw new Error('Article introuvable.')
       if (!(it.quantity > 0)) throw new Error(`Quantité invalide pour « ${a.designation} ».`)
-      if (a.stock < it.quantity) throw new Error(`Stock insuffisant pour « ${a.designation} » (disponible : ${a.stock}).`)
+      if (a.stock < it.quantity && cfg.sales_allow_below_stock !== '1') throw new Error(`Stock insuffisant pour « ${a.designation} » (disponible : ${a.stock}).`)
       return { a, quantity: it.quantity, total: Math.round(it.quantity * a.sale_price) }
     })
 
@@ -28,6 +31,9 @@ function createSale(input: SaleInput): Receipt {
     const discount = toMillimes(input.discount)
     const total = subtotal - discount
     if (discount < 0 || total < 0) throw new Error('Remise invalide.')
+    // Remise maximale : s'applique au caissier uniquement (gérant et administrateur sans limite).
+    const maxPct = currentUser()?.role === 'caissier' ? Number(cfg.sales_max_discount_pct) : 100
+    if (discount > Math.round((subtotal * maxPct) / 100)) throw new Error(`Remise limitée à ${maxPct} % du total.`)
     const received = toMillimes(input.received)
     if (input.method === 'especes' && received < total) throw new Error('Montant reçu insuffisant.')
 

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
 import { cn, formatQty } from '@/lib/utils'
+import { useAppConfig } from '@/lib/useAppConfig'
+import { stockLevel } from '@shared/settings'
 import { MOVEMENT_LABELS, type Article, type MovementInput, type StockMovement } from '@shared/types'
 
 type Tab = 'alertes' | 'mouvements'
@@ -18,6 +20,7 @@ const REASONS: { value: MovementInput['type']; label: string; dir: 'in' | 'out' 
 ]
 
 export default function StockPage() {
+  const cfg = useAppConfig()
   const [tab, setTab] = useState<Tab>('alertes')
   const [articles, setArticles] = useState<Article[]>([])
   const [movements, setMovements] = useState<StockMovement[]>([])
@@ -32,8 +35,8 @@ export default function StockPage() {
   useEffect(() => { load() }, [load])
 
   const alerts = useMemo(
-    () => articles.filter((a) => a.stock <= a.minStock).sort((x, y) => x.stock - y.stock),
-    [articles]
+    () => articles.filter((a) => stockLevel(a.stock, a.minStock, cfg) !== 'ok').sort((x, y) => x.stock - y.stock),
+    [articles, cfg]
   )
   const q = search.toLowerCase().trim()
   const shownMovements = movements.filter((m) => !q || m.designation.toLowerCase().includes(q) || m.barcode.toLowerCase().includes(q))

@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import * as XLSX from 'xlsx'
 import { getDb } from '../db'
+import { getSettings } from '../settings'
 import { fromMillimes, toMillimes } from '@shared/money'
 import type { Article, ArticleInput, Category, ImportReport, Result } from '@shared/types'
 
@@ -133,10 +134,11 @@ function importExcel(filePath: string): ImportReport {
         barcode,
         designation,
         categoryId,
-        unit: String(row.unit ?? '').trim() || 'pièce',
+        unit: String(row.unit ?? '').trim() || getSettings().stock_default_unit,
         purchasePrice: num(row.purchasePrice),
         salePrice: num(row.salePrice),
-        minStock: num(row.minStock),
+        // colonne vide : seuil par défaut des paramètres (Paramètres > Stock)
+        minStock: String(row.minStock ?? '').trim() === '' ? Number(getSettings().stock_default_min) : num(row.minStock),
         initialStock: num(row.stock)
       }
       const existing = findArticle.get(barcode) as { id: number } | undefined
