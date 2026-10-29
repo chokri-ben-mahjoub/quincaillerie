@@ -12,6 +12,7 @@ import {
 import type { Result } from '@shared/types'
 import { footerTemplate, renderInvoiceHtml } from '../print/invoiceTemplate'
 import { htmlToPdf } from '../print/pdf'
+import { printHtml } from '../print/printer'
 
 function handle<T>(channel: string, fn: (...args: any[]) => T | Promise<T>): void {
   ipcMain.handle(channel, async (_e, ...args): Promise<Result<T>> => {
@@ -24,7 +25,7 @@ function handle<T>(channel: string, fn: (...args: any[]) => T | Promise<T>): voi
 }
 
 // Facture et devis partagent la même logique : seules les tables, le préfixe de numéro et le statut « validé » changent.
-const KINDS = {
+export const KINDS = {
   facture: { head: 'invoices', items: 'invoice_items', fk: 'invoice_id', counter: 'facture', validStatus: 'validee', label: 'Facture' },
   devis: { head: 'quotes', items: 'quote_items', fk: 'quote_id', counter: 'devis', validStatus: 'valide', label: 'Devis' },
   bon_livraison: { head: 'delivery_notes', items: 'dn_items', fk: 'dn_id', counter: 'bon_livraison', validStatus: 'valide', label: 'Bon-de-livraison' },
@@ -50,7 +51,7 @@ export function getCompany(): CompanyInfo {
 }
 
 // ---------- Lecture ----------
-function readDoc(k: Kind, id: number): Invoice & { convertedInvoiceId?: number | null } {
+export function readDoc(k: Kind, id: number): Invoice & { convertedInvoiceId?: number | null } {
   const db = getDb()
   const r = db.prepare(`SELECT * FROM ${k.head} WHERE id = ?`).get(id) as any
   if (!r) throw new Error(`${k.label} introuvable.`)
@@ -153,7 +154,7 @@ function convertQuote(id: number): number {
 }
 
 // ---------- Impression ----------
-async function buildPdf(kind: DocKind, id: number): Promise<{ pdf: Buffer; name: string }> {
+export async function buildPdf(kind: DocKind, id: number): Promise<{ pdf: Buffer; name: string }> {
   const doc = readDoc(KINDS[kind], id)
   const co = getCompany()
   const pdf = await htmlToPdf(renderInvoiceHtml(doc, co, kind), footerTemplate(co, doc.number, kind))
@@ -204,6 +205,11 @@ export function registerInvoiceHandlers(): void {
     // Ces deux canaux ont besoin de la fenêtre appelante.
     ipcMain.handle(`${ns}:preview`, async (e, id: number): Promise<Result<void>> => {
       try { await previewDoc(kind, id, ownerOf(e)); return { ok: true, data: undefined } }
+      catch (err: any) { return { ok: false, error: String(err?.message ?? err) } }
+    })
+    // Impression directe sur l'imprimante A4 choisie (Paramètres > Impression), copies comprises.
+    ipcMain.handle(`${ns}:print`, async (_e, id: number): Promise<Result<boolean>> => {
+      try { return { ok: true, data: await printHtml(renderInvoiceHtml(readDoc(k, id), getCompany(), kind), 'a4') } }
       catch (err: any) { return { ok: false, error: String(err?.message ?? err) } }
     })
     ipcMain.handle(`${ns}:export`, async (e, id: number): Promise<Result<string | null>> => {

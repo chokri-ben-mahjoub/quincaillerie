@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, Eye, PackageCheck, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Download, Eye, Printer, Share2, PackageCheck, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatMoney } from '@/lib/utils'
 import { DELIVERY_LABELS, type DeliveryStatus, type DeliverySummary } from '@shared/invoice'
 import InvoiceEditor from './InvoiceEditor'
+import ShareDialog from '@/components/ShareDialog'
 
 const fmtDate = (iso: string) => iso.split('-').reverse().join('/')
 const TONES: Record<DeliveryStatus, 'neutral' | 'success' | 'warning'> = { brouillon: 'warning', valide: 'neutral', livre: 'success' }
@@ -16,6 +17,7 @@ export default function LivraisonsPage() {
   const [search, setSearch] = useState('')
   const [editor, setEditor] = useState<number | 'new' | null>(null)
   const [message, setMessage] = useState('')
+  const [shareId, setShareId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     const r = await window.api.deliveries.list()
@@ -77,6 +79,8 @@ export default function LivraisonsPage() {
                         <PackageCheck className="h-4 w-4" />Marquer livré
                       </Button>
                     )}
+                    <Button variant="ghost" size="icon" title="Imprimer (imprimante A4 des paramètres)" onClick={() => run(window.api.deliveries.print(n.id))}><Printer className="h-4 w-4" /></Button>
+                    {n.status !== 'brouillon' && <Button variant="ghost" size="icon" title="Partager (WhatsApp / e-mail)" onClick={() => setShareId(n.id)}><Share2 className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" title="Aperçu avant impression" onClick={() => run(window.api.deliveries.preview(n.id))}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" title="Exporter en PDF" onClick={async () => {
                       const r = await window.api.deliveries.exportPdf(n.id)
@@ -98,6 +102,7 @@ export default function LivraisonsPage() {
         </table>
       </section>
 
+      <ShareDialog kind="bon_livraison" id={shareId} onClose={() => setShareId(null)} />
       <InvoiceEditor kind="bon_livraison" target={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); load() }} />
     </div>
   )

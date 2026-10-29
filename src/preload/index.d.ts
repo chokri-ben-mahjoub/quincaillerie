@@ -1,3 +1,4 @@
+import type { ShareDraft, ShareRequest } from '@shared/share'
 import type { AppConfig, SettingsMap } from '@shared/settings'
 import type { CompanyInfo, Invoice, InvoiceInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
 import type { BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
@@ -34,6 +35,7 @@ declare global {
         remove: (id: number) => Promise<Result<void>>
         preview: (id: number) => Promise<Result<void>>
         exportPdf: (id: number) => Promise<Result<string | null>>
+        print: (id: number) => Promise<Result<boolean>>
       }
       quotes: {
         list: () => Promise<Result<QuoteSummary[]>>
@@ -43,6 +45,7 @@ declare global {
         remove: (id: number) => Promise<Result<void>>
         preview: (id: number) => Promise<Result<void>>
         exportPdf: (id: number) => Promise<Result<string | null>>
+        print: (id: number) => Promise<Result<boolean>>
         setStatus: (id: number, status: 'accepte' | 'refuse') => Promise<Result<void>>
         convert: (id: number) => Promise<Result<number>>
       }
@@ -54,6 +57,7 @@ declare global {
         remove: (id: number) => Promise<Result<void>>
         preview: (id: number) => Promise<Result<void>>
         exportPdf: (id: number) => Promise<Result<string | null>>
+        print: (id: number) => Promise<Result<boolean>>
         setReceived: (id: number) => Promise<Result<void>>
       }
       deliveries: {
@@ -64,6 +68,7 @@ declare global {
         remove: (id: number) => Promise<Result<void>>
         preview: (id: number) => Promise<Result<void>>
         exportPdf: (id: number) => Promise<Result<string | null>>
+        print: (id: number) => Promise<Result<boolean>>
         setDelivered: (id: number) => Promise<Result<void>>
       }
       tickets: {
@@ -73,6 +78,14 @@ declare global {
       }
       company: {
         get: () => Promise<Result<CompanyInfo>>
+      }
+      print: {
+        printers: () => Promise<Result<{ name: string; isDefault: boolean }[]>>
+        test: (format: 'a4' | 'ticket') => Promise<Result<boolean>>
+      }
+      share: {
+        compose: (kind: string, id: number) => Promise<Result<ShareDraft>>
+        open: (req: ShareRequest) => Promise<Result<{ url: string; pdfPath: string }>>
       }
       app: {
         config: () => Promise<Result<AppConfig>>

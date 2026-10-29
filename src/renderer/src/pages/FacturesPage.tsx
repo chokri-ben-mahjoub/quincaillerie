@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, Eye, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Download, Eye, Printer, Share2, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatMoney } from '@/lib/utils'
 import type { InvoiceSummary } from '@shared/invoice'
 import InvoiceEditor from './InvoiceEditor'
+import ShareDialog from '@/components/ShareDialog'
 
 const fmtDate = (iso: string) => iso.split('-').reverse().join('/')
 
@@ -14,6 +15,7 @@ export default function FacturesPage() {
   const [search, setSearch] = useState('')
   const [editor, setEditor] = useState<number | 'new' | null>(null)
   const [message, setMessage] = useState('')
+  const [shareId, setShareId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     const r = await window.api.invoices.list()
@@ -81,6 +83,8 @@ export default function FacturesPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" title="Imprimer (imprimante A4 des paramètres)" onClick={() => act(window.api.invoices.print(i.id))}><Printer className="h-4 w-4" /></Button>
+                    {i.status !== 'brouillon' && <Button variant="ghost" size="icon" title="Partager (WhatsApp / e-mail)" onClick={() => setShareId(i.id)}><Share2 className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" title="Aperçu avant impression" onClick={() => act(window.api.invoices.preview(i.id))}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" title="Exporter en PDF" onClick={async () => {
                       const r = await window.api.invoices.exportPdf(i.id)
@@ -101,6 +105,7 @@ export default function FacturesPage() {
         </table>
       </section>
 
+      <ShareDialog kind="facture" id={shareId} onClose={() => setShareId(null)} />
       <InvoiceEditor target={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); load() }} />
     </div>
   )

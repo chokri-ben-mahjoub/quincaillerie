@@ -7,9 +7,11 @@ import { fromMillimes } from '@shared/money'
 import type { Result, Ticket } from '@shared/types'
 import { getCompany } from './invoices'
 import { renderTicketHtml } from '../print/ticketTemplate'
+import { printHtml } from '../print/printer'
+import { getSettings } from '../settings'
 
-const PAPER_WIDTH_MM = 80
-const PX_TO_MICRONS = 264.583 // 1 px CSS = 0.2646 mm
+const paperWidth = (): number => Number(getSettings().print_ticket_paper) || 80 // largeur du rouleau (Paramètres > Impression)
+
 
 /** Reconstruit le ticket d'une vente depuis la base. `received` (montant remis) n'est pas stocké : il vient de l'écran de caisse. */
 function readTicket(saleId: number, received?: number): Ticket {
@@ -38,7 +40,7 @@ function readTicket(saleId: number, received?: number): Ticket {
 
 /** Charge le ticket dans une fenêtre invisible et mesure sa hauteur (rouleau : longueur variable). */
 async function withTicketWindow<T>(saleId: number, received: number | undefined, fn: (win: BrowserWindow, heightPx: number) => Promise<T>): Promise<T> {
-  const html = renderTicketHtml(readTicket(saleId, received), getCompany())
+  const html = renderTicketHtml(readTicket(saleId, received), getCompany(), paperWidth())
   const file = join(tmpdir(), `quincaillerie-ticket-${Date.now()}.html`)
   writeFileSync(file, html, 'utf8')
   const win = new BrowserWindow({ show: false, width: 320, height: 600, webPreferences: { sandbox: true, contextIsolation: true } })
@@ -56,7 +58,7 @@ const toPdf = (saleId: number, received?: number): Promise<Buffer> =>
   withTicketWindow(saleId, received, (win, h) =>
     win.webContents.printToPDF({
       printBackground: true,
-      pageSize: { width: PAPER_WIDTH_MM / 25.4, height: (h + 8) / 96 }, // pouces
+      pageSize: { width: paperWidth() / 25.4, height: (h + 8) / 96 }, // pouces
       margins: { top: 0, bottom: 0, left: 0, right: 0 }
     }))
 
@@ -67,14 +69,9 @@ export function registerTicketHandlers(): void {
       try { return { ok: true, data: await fn(e, ...args) } } catch (err: any) { return { ok: false, error: String(err?.message ?? err) } }
     })
 
-  // Impression : boîte de dialogue système (choix de l'imprimante thermique), papier 80 mm de hauteur ajustée.
+  // Impression : imprimante, copies et mode direct viennent de Paramètres > Impression.
   wrap('tickets:print', (_e, saleId: number, received?: number) =>
-    withTicketWindow(saleId, received, (win, h) => new Promise<boolean>((resolve, reject) => {
-      win.webContents.print(
-        { silent: false, printBackground: true, margins: { marginType: 'none' },
-          pageSize: { width: PAPER_WIDTH_MM * 1000, height: Math.round((h + 8) * PX_TO_MICRONS) } },
-        (success, reason) => (success || reason === 'cancelled' || reason === 'Print job canceled' ? resolve(success) : reject(new Error(reason))))
-    })))
+    printHtml(renderTicketHtml(readTicket(saleId, received), getCompany(), paperWidth()), 'ticket'))
 
   // Aperçu : le ticket au format réel (80 mm) dans une fenêtre avec le lecteur PDF.
   wrap('tickets:preview', async (e, saleId: number, received?: number) => {

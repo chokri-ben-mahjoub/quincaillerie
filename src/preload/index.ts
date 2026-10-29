@@ -33,7 +33,8 @@ const api = {
     validate: (id: number) => call('invoices:validate', id),
     remove: (id: number) => call('invoices:delete', id),
     preview: (id: number) => call('invoices:preview', id),
-    exportPdf: (id: number) => call('invoices:export', id)
+    exportPdf: (id: number) => call('invoices:export', id),
+    print: (id: number) => call('invoices:print', id)
   },
   quotes: {
     list: () => call('quotes:list'),
@@ -43,6 +44,7 @@ const api = {
     remove: (id: number) => call('quotes:delete', id),
     preview: (id: number) => call('quotes:preview', id),
     exportPdf: (id: number) => call('quotes:export', id),
+    print: (id: number) => call('quotes:print', id),
     setStatus: (id: number, status: 'accepte' | 'refuse') => call('quotes:setStatus', id, status),
     convert: (id: number) => call('quotes:convert', id)
   },
@@ -54,6 +56,7 @@ const api = {
     remove: (id: number) => call('orders:delete', id),
     preview: (id: number) => call('orders:preview', id),
     exportPdf: (id: number) => call('orders:export', id),
+    print: (id: number) => call('orders:print', id),
     setReceived: (id: number) => call('orders:setReceived', id)
   },
   deliveries: {
@@ -64,6 +67,7 @@ const api = {
     remove: (id: number) => call('deliveries:delete', id),
     preview: (id: number) => call('deliveries:preview', id),
     exportPdf: (id: number) => call('deliveries:export', id),
+    print: (id: number) => call('deliveries:print', id),
     setDelivered: (id: number) => call('deliveries:setDelivered', id)
   },
   tickets: {
@@ -73,6 +77,14 @@ const api = {
   },
   company: {
     get: () => call('company:get')
+  },
+  print: {
+    printers: () => call('print:printers'),
+    test: (format: 'a4' | 'ticket') => call('print:test', format)
+  },
+  share: {
+    compose: (kind: string, id: number) => call('share:compose', kind, id),
+    open: (req: unknown) => call('share:open', req)
   },
   app: {
     config: () => call('app:config')

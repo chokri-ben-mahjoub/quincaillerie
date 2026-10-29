@@ -95,6 +95,7 @@ export default function CaissePage() {
     })
     if (!res.ok) return setError(res.error)
     setReceipt(res.data)
+    if (cfg.autoPrintTicket) window.api.tickets.print(res.data.id, res.data.received) // Paramètres > Impression
     reset()
     load() // rafraîchit les stocks
   }

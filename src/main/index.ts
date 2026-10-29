@@ -11,6 +11,8 @@ import { registerBackupHandlers, startBackupScheduler } from './ipc/backup'
 import { registerInvoiceHandlers } from './ipc/invoices'
 import { registerTicketHandlers } from './ipc/tickets'
 import { registerSettingsHandlers } from './ipc/settings'
+import { registerPrintHandlers } from './ipc/print'
+import { registerShareHandlers } from './ipc/share'
 import { installGuard, registerAuthHandlers } from './ipc/auth'
 
 function createWindow(): void {
@@ -46,6 +48,8 @@ app.whenReady().then(() => {
   registerInvoiceHandlers()
   registerTicketHandlers()
   registerSettingsHandlers()
+  registerPrintHandlers()
+  registerShareHandlers()
   startBackupScheduler()
   registerArticleHandlers()
   registerStockHandlers()

@@ -18,7 +18,8 @@ export function registerSettingsHandlers(): void {
         paymentMethods: s.sales_payment_methods.split(','), defaultMethod: s.sales_default_method,
         allowBelowStock: s.sales_allow_below_stock === '1', creditDefaultLimit: Number(s.sales_credit_default_limit),
         stockDefaultMin: Number(s.stock_default_min), stockDefaultUnit: s.stock_default_unit,
-        alertsEnabled: s.stock_alerts_enabled === '1', alertMarginPct: Number(s.stock_alert_margin_pct)
+        alertsEnabled: s.stock_alerts_enabled === '1', alertMarginPct: Number(s.stock_alert_margin_pct),
+        autoPrintTicket: s.print_ticket_auto === '1', whatsappEnabled: s.share_whatsapp_enabled === '1', emailEnabled: s.share_email_enabled === '1'
       } }
     } catch (e: any) { return { ok: false, error: String(e?.message ?? e) } }
   })

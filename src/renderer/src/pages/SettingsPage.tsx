@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
+import { Printer, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { formatDocNumber, type SettingsMap } from '@shared/settings'
+import { SHARE_PLACEHOLDERS, formatDocNumber, normalizePhone, renderTemplate, type SettingsMap } from '@shared/settings'
 import { PAY_LABELS, UNITS, type PayMethod } from '@shared/types'
 
 // ---------- Organisation en onglets ----------
@@ -14,8 +14,8 @@ const TABS = [
   { id: 'taxes', label: 'Taxes', icon: Percent, ready: true },
   { id: 'ventes', label: 'Ventes', icon: ShoppingCart, ready: true },
   { id: 'stock', label: 'Stock', icon: Warehouse, ready: true },
-  { id: 'impression', label: 'Impression', ready: false },
-  { id: 'partage', label: 'Partage', ready: false },
+  { id: 'impression', label: 'Impression', icon: Printer, ready: true },
+  { id: 'partage', label: 'Partage', icon: Share2, ready: true },
   { id: 'utilisateurs', label: 'Utilisateurs / droits', ready: false },
   { id: 'sauvegarde', label: 'Sauvegarde', ready: false },
   { id: 'listes', label: 'Listes', ready: false }
@@ -337,6 +337,110 @@ function StockTab({ v, set }: TabProps) {
   )
 }
 
+// ---------- Onglet Impression ----------
+function PrinterSelect({ value, onChange, printers }: { value: string; onChange: (v: string) => void; printers: { name: string; isDefault: boolean }[] }) {
+  const known = !value || printers.some((p) => p.name === value)
+  return (
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Imprimante par défaut de Windows</option>
+      {printers.map((p) => <option key={p.name} value={p.name}>{p.name}{p.isDefault ? ' (par défaut)' : ''}</option>)}
+      {!known && <option value={value}>{value} (introuvable)</option>}
+    </Select>
+  )
+}
+
+function ImpressionTab({ v, set }: TabProps) {
+  const [printers, setPrinters] = useState<{ name: string; isDefault: boolean }[]>([])
+  const [msg, setMsg] = useState('')
+  useEffect(() => { window.api.print.printers().then((r) => r.ok && setPrinters(r.data)) }, [])
+
+  async function test(format: 'a4' | 'ticket') {
+    setMsg('')
+    const r = await window.api.print.test(format) // utilise les réglages ENREGISTRÉS
+    setMsg(r.ok ? (r.data ? 'Page de test envoyée à l’imprimante.' : 'Impression annulée.') : r.error)
+  }
+
+  const block = (prefix: 'print_a4_' | 'print_ticket_', title: string, hint: string, fmt: 'a4' | 'ticket') => (
+    <Card title={title} hint={hint}>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2"><Label>Imprimante</Label>
+          <PrinterSelect value={v[prefix + 'printer']} onChange={(x) => set(prefix + 'printer', x)} printers={printers} /></div>
+        <div><Label>Nombre de copies</Label>
+          <Input type="number" min={1} max={10} value={v[prefix + 'copies']} onChange={(e) => set(prefix + 'copies', e.target.value)} /></div>
+        {fmt === 'ticket' && (
+          <div><Label>Largeur du rouleau</Label>
+            <Select value={v.print_ticket_paper} onChange={(e) => set('print_ticket_paper', e.target.value)}>
+              <option value="80">80 mm</option><option value="58">58 mm</option>
+            </Select></div>
+        )}
+        <div className="col-span-2"><Switch checked={v[prefix + 'silent'] === '1'} onChange={(b) => set(prefix + 'silent', b ? '1' : '0')}
+          label="Impression directe" hint="Envoie à l’imprimante sans boîte de dialogue (imprimante par défaut si aucune n’est choisie)." /></div>
+        {fmt === 'ticket' && (
+          <div className="col-span-2"><Switch checked={v.print_ticket_auto === '1'} onChange={(b) => set('print_ticket_auto', b ? '1' : '0')}
+            label="Imprimer le ticket après chaque vente" hint="Le ticket sort automatiquement à l’encaissement." /></div>
+        )}
+      </div>
+      <div className="mt-5"><Button variant="outline" onClick={() => test(fmt)}><Printer className="h-4 w-4" />Imprimer une page de test</Button></div>
+    </Card>
+  )
+
+  return (
+    <div className="space-y-6">
+      {msg && <p className="rounded-md bg-muted px-3 py-2 text-sm">{msg}</p>}
+      {printers.length === 0 && <p className="rounded-md bg-warning/15 px-3 py-2 text-sm text-warning">Aucune imprimante détectée sur ce poste.</p>}
+      {block('print_a4_', 'Documents A4', 'Factures, devis, bons de commande et de livraison (bouton Imprimer). L’aperçu PDF garde la pagination « Page x / y ».', 'a4')}
+      {block('print_ticket_', 'Ticket de caisse', 'Imprimante thermique du comptoir.', 'ticket')}
+      <p className="text-sm text-muted-foreground">Le bouton « Page de test » utilise les réglages enregistrés : enregistrez d’abord vos modifications.</p>
+    </div>
+  )
+}
+
+// ---------- Onglet Partage ----------
+const SAMPLE = { client: 'Ali Trabelsi', document: 'Facture', numero: 'FA-2026-0001', montant: '110,005', date: '29/10/2026', societe: 'Ma Quincaillerie' }
+
+function PartageTab({ v, set }: TabProps) {
+  const [focus, setFocus] = useState<string>('share_whatsapp_message')
+  const insert = (name: string) => set(focus, (v[focus] ?? '') + `{${name}}`)
+  const area = (key: string, label: string, rows = 'min-h-[110px]') => (
+    <div><Label>{label}</Label>
+      <Textarea className={rows} value={v[key]} onFocus={() => setFocus(key)} onChange={(e) => set(key, e.target.value)} />
+      <div className="mt-2 whitespace-pre-line rounded-md bg-muted px-3 py-2 text-sm"><span className="text-xs uppercase tracking-wide text-muted-foreground">Aperçu</span>{'\n'}{renderTemplate(v[key], SAMPLE)}</div>
+    </div>
+  )
+  return (
+    <div className="space-y-6">
+      <Card title="Numéros de téléphone" hint="Indicatif ajouté aux numéros saisis sans indicatif (WhatsApp).">
+        <div className="grid grid-cols-2 items-end gap-4">
+          <div><Label>Indicatif du pays</Label><Input value={v.share_country_code} onChange={(e) => set('share_country_code', e.target.value)} className="font-mono" /></div>
+          <p className="rounded-md bg-muted px-3 py-2 text-sm">« 98 123 456 » → <b className="font-mono">{normalizePhone('98 123 456', v.share_country_code || '+216')}</b></p>
+        </div>
+      </Card>
+
+      <Card title="Canaux de partage">
+        <div className="space-y-3">
+          <Switch checked={v.share_whatsapp_enabled === '1'} onChange={(b) => set('share_whatsapp_enabled', b ? '1' : '0')} label="WhatsApp" hint="Ouvre WhatsApp avec le message prêt à envoyer." />
+          <Switch checked={v.share_email_enabled === '1'} onChange={(b) => set('share_email_enabled', b ? '1' : '0')} label="E-mail" hint="Ouvre votre application de messagerie." />
+        </div>
+      </Card>
+
+      <Card title="Modèles de message" hint="Cliquez sur une variable pour l’ajouter au texte en cours de saisie.">
+        <div className="mb-4 flex flex-wrap gap-2">
+          {SHARE_PLACEHOLDERS.map((p) => (
+            <button key={p} type="button" onClick={() => insert(p)} className="rounded-full border bg-muted px-3 py-1 font-mono text-xs hover:border-primary hover:text-primary">{`{${p}}`}</button>
+          ))}
+        </div>
+        <div className="space-y-5">
+          {area('share_whatsapp_message', 'Message WhatsApp')}
+          <div><Label>Objet de l’e-mail</Label>
+            <Input value={v.share_email_subject} onFocus={() => setFocus('share_email_subject')} onChange={(e) => set('share_email_subject', e.target.value)} />
+            <p className="mt-1.5 text-sm text-muted-foreground">{renderTemplate(v.share_email_subject, SAMPLE)}</p></div>
+          {area('share_email_body', 'Corps de l’e-mail', 'min-h-[140px]')}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 // ---------- Page ----------
 export default function SettingsPage() {
   const [tab, setTab] = useState<TabId>('societe')
@@ -390,6 +494,8 @@ export default function SettingsPage() {
           {tab === 'taxes' && <TaxesTab {...props} />}
           {tab === 'ventes' && <VentesTab {...props} />}
           {tab === 'stock' && <StockTab {...props} />}
+          {tab === 'impression' && <ImpressionTab {...props} />}
+          {tab === 'partage' && <PartageTab {...props} />}
         </div>
       </div>
 

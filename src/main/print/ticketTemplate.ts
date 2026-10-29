@@ -13,10 +13,10 @@ const stamp = (s: string): string => {
   return `${d.split('-').reverse().join('/')} ${t.slice(0, 5)}`
 }
 
-const CSS = `
+const css = (w: number) => `
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; }
-  body { width: 80mm; padding: 3mm 4mm 5mm; font-family: "Segoe UI", Arial, sans-serif; font-size: 9pt; line-height: 1.35; color: #000; }
+  body { width: ${w}mm; padding: 3mm ${w > 60 ? 4 : 2.5}mm 5mm; font-family: "Segoe UI", Arial, sans-serif; font-size: ${w > 60 ? 9 : 8}pt; line-height: 1.35; color: #000; }
   .c { text-align: center; }
   .logo { max-width: 46mm; max-height: 16mm; display: block; margin: 0 auto 2mm; filter: grayscale(1) contrast(1.2); }
   h1 { margin: 0; font-size: 12pt; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
@@ -32,7 +32,7 @@ const CSS = `
   .thanks { margin-top: 3mm; font-weight: 600; }
 `
 
-export function renderTicketHtml(t: Ticket, co: CompanyInfo): string {
+export function renderTicketHtml(t: Ticket, co: CompanyInfo, widthMm = 80): string {
   const header = [
     co.address && `<div class="small">${esc(co.address)}</div>`,
     co.phone && `<div class="small">Tél : ${esc(co.phone)}</div>`,
@@ -45,7 +45,7 @@ export function renderTicketHtml(t: Ticket, co: CompanyInfo): string {
       <div class="row calc"><span>${qty(l.quantity)} ${esc(l.unit)} × ${money(l.unitPrice)}</span><span>${money(l.total)}</span></div>
     </div>`).join('')
 
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Ticket ${esc(t.number)}</title><style>${CSS}</style></head>
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Ticket ${esc(t.number)}</title><style>${css(widthMm)}</style></head>
 <body>
   <div class="c">
     ${co.logo ? `<img class="logo" src="${co.logo}" alt="">` : ''}

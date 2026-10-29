@@ -14,6 +14,8 @@ export interface SettingDef {
   max?: number
   maxLength?: number
   options?: string[]
+  pattern?: string // expression régulière pour les textes
+  patternMessage?: string
 }
 
 const def = (key: string, dflt: string, type: SettingType, extra: Partial<SettingDef> = {}): SettingDef =>
@@ -68,7 +70,25 @@ export const SETTING_DEFS: SettingDef[] = [
   def('stock_default_min', '0', 'number'), // seuil d'alerte proposé pour un nouvel article
   def('stock_default_unit', 'pièce', 'choice', { options: [...UNITS] }),
   def('stock_alerts_enabled', '1', 'bool'),
-  def('stock_alert_margin_pct', '0', 'int', { min: 0, max: 200 }) // alerte dès seuil + X %
+  def('stock_alert_margin_pct', '0', 'int', { min: 0, max: 200 }), // alerte dès seuil + X %
+
+  // ----- Impression ('' = imprimante par défaut de Windows) -----
+  def('print_a4_printer', '', 'text', { maxLength: 200 }),
+  def('print_a4_copies', '1', 'int', { min: 1, max: 10 }),
+  def('print_a4_silent', '0', 'bool'), // impression directe, sans boîte de dialogue
+  def('print_ticket_printer', '', 'text', { maxLength: 200 }),
+  def('print_ticket_copies', '1', 'int', { min: 1, max: 10 }),
+  def('print_ticket_silent', '0', 'bool'),
+  def('print_ticket_paper', '80', 'choice', { options: ['80', '58'] }), // largeur du rouleau en mm
+  def('print_ticket_auto', '0', 'bool'), // imprimer le ticket automatiquement après chaque vente
+
+  // ----- Partage (WhatsApp / e-mail) -----
+  def('share_country_code', '+216', 'text', { maxLength: 5, pattern: '^\\+\\d{1,4}$', patternMessage: 'Indicatif au format +216.' }),
+  def('share_whatsapp_enabled', '1', 'bool'),
+  def('share_email_enabled', '1', 'bool'),
+  def('share_whatsapp_message', "Bonjour {client},\nVeuillez trouver ci-joint votre {document} n° {numero} d'un montant de {montant} DT.\nMerci pour votre confiance.\n{societe}", 'multiline', { maxLength: 1000 }),
+  def('share_email_subject', '{document} n° {numero} — {societe}', 'text', { maxLength: 200 }),
+  def('share_email_body', "Bonjour {client},\n\nVeuillez trouver ci-joint votre {document} n° {numero} du {date}, d'un montant de {montant} DT.\n\nCordialement,\n{societe}", 'multiline', { maxLength: 2000 })
 ]
 
 export type SettingsMap = Record<string, string>
@@ -85,7 +105,9 @@ export function validateSetting(d: SettingDef, raw: unknown): ValidationResult {
   switch (d.type) {
     case 'text':
     case 'multiline':
-      return s.length > (d.maxLength ?? 500) ? fail(`${d.maxLength} caractères maximum.`) : { ok: true, value: s }
+      if (s.length > (d.maxLength ?? 500)) return fail(`${d.maxLength} caractères maximum.`)
+      if (d.pattern && !new RegExp(d.pattern).test(s)) return fail(d.patternMessage ?? 'Format invalide.')
+      return { ok: true, value: s }
     case 'prefix': {
       const p = s.toUpperCase()
       return /^[A-Z0-9]{1,6}$/.test(p) ? { ok: true, value: p } : fail('1 à 6 lettres ou chiffres (sans espace).')
@@ -143,11 +165,15 @@ export interface AppConfig {
   stockDefaultUnit: string
   alertsEnabled: boolean
   alertMarginPct: number
+  autoPrintTicket: boolean
+  whatsappEnabled: boolean
+  emailEnabled: boolean
 }
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
   maxDiscountPct: 100, paymentMethods: ['especes', 'carte', 'cheque', 'credit'], defaultMethod: 'especes', allowBelowStock: false,
-  creditDefaultLimit: 0, stockDefaultMin: 0, stockDefaultUnit: 'pièce', alertsEnabled: true, alertMarginPct: 0
+  creditDefaultLimit: 0, stockDefaultMin: 0, stockDefaultUnit: 'pièce', alertsEnabled: true, alertMarginPct: 0,
+  autoPrintTicket: false, whatsappEnabled: true, emailEnabled: true
 }
 
 /** Niveau de stock d'un article : rupture, bas (alerte) ou normal. L'alerte se déclenche à seuil + marge %. */
@@ -155,4 +181,23 @@ export function stockLevel(stock: number, min: number, cfg: Pick<AppConfig, 'ale
   if (stock <= 0) return 'out'
   if (cfg.alertsEnabled && min > 0 && stock <= min * (1 + cfg.alertMarginPct / 100)) return 'low'
   return 'ok'
+}
+
+// ---------- Partage : modèles de message et numéros ----------
+export const SHARE_PLACEHOLDERS = ['client', 'document', 'numero', 'montant', 'date', 'societe'] as const
+
+/** Remplace {client}, {numero}… dans un modèle ; une variable inconnue est laissée telle quelle. */
+export function renderTemplate(tpl: string, vars: Record<string, string>): string {
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m))
+}
+
+/** Numéro au format international sans « + » pour wa.me : « 73 000 111 » -> « 21673000111 » (indicatif +216). */
+export function normalizePhone(raw: string, countryCode: string): string {
+  const cc = countryCode.replace(/\D/g, '')
+  let d = raw.replace(/[^\d+]/g, '')
+  if (d.startsWith('+')) return d.slice(1)
+  d = d.replace(/\D/g, '')
+  if (d.startsWith('00')) return d.slice(2)
+  if (d.startsWith(cc) && d.length > 8) return d // déjà avec l'indicatif
+  return cc + d.replace(/^0+/, '')
 }

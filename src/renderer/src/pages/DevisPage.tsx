@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Download, Eye, FileOutput, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, Download, Eye, Printer, Share2, FileOutput, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatMoney } from '@/lib/utils'
 import { QUOTE_LABELS, type QuoteStatus, type QuoteSummary } from '@shared/invoice'
 import InvoiceEditor from './InvoiceEditor'
+import ShareDialog from '@/components/ShareDialog'
 
 const fmtDate = (iso: string) => iso.split('-').reverse().join('/')
 const TONES: Record<QuoteStatus, 'neutral' | 'success' | 'warning' | 'danger'> = {
@@ -17,6 +18,7 @@ export default function DevisPage() {
   const [search, setSearch] = useState('')
   const [editor, setEditor] = useState<number | 'new' | null>(null)
   const [message, setMessage] = useState('')
+  const [shareId, setShareId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     const r = await window.api.quotes.list()
@@ -87,7 +89,9 @@ export default function DevisPage() {
                           <Button variant="ghost" size="icon" title="Marquer refusé" onClick={() => run(window.api.quotes.setStatus(x.id, 'refuse'))}><X className="h-4 w-4 text-destructive" /></Button>
                         </>
                       )}
-                      <Button variant="ghost" size="icon" title="Aperçu avant impression" onClick={() => run(window.api.quotes.preview(x.id))}><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" title="Imprimer (imprimante A4 des paramètres)" onClick={() => run(window.api.quotes.print(x.id))}><Printer className="h-4 w-4" /></Button>
+                    {x.status !== 'brouillon' && <Button variant="ghost" size="icon" title="Partager (WhatsApp / e-mail)" onClick={() => setShareId(x.id)}><Share2 className="h-4 w-4" /></Button>}
+                    <Button variant="ghost" size="icon" title="Aperçu avant impression" onClick={() => run(window.api.quotes.preview(x.id))}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" title="Exporter en PDF" onClick={async () => {
                         const r = await window.api.quotes.exportPdf(x.id)
                         setMessage(r.ok ? (r.data ? `PDF enregistré : ${r.data}` : '') : r.error)
@@ -109,6 +113,7 @@ export default function DevisPage() {
         </table>
       </section>
 
+      <ShareDialog kind="devis" id={shareId} onClose={() => setShareId(null)} />
       <InvoiceEditor kind="devis" target={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); load() }} />
     </div>
   )
