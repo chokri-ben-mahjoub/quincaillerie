@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Printer, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
+import { DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { SHARE_PLACEHOLDERS, formatDocNumber, normalizePhone, renderTemplate, type SettingsMap } from '@shared/settings'
-import { PAY_LABELS, UNITS, type PayMethod } from '@shared/types'
+import { PAY_LABELS, type PayMethod } from '@shared/types'
+import { PERMISSIONS } from '@shared/permissions'
+import BackupPanel from '@/components/BackupPanel'
 
 // ---------- Organisation en onglets ----------
 const TABS = [
@@ -16,14 +18,14 @@ const TABS = [
   { id: 'stock', label: 'Stock', icon: Warehouse, ready: true },
   { id: 'impression', label: 'Impression', icon: Printer, ready: true },
   { id: 'partage', label: 'Partage', icon: Share2, ready: true },
-  { id: 'utilisateurs', label: 'Utilisateurs / droits', ready: false },
-  { id: 'sauvegarde', label: 'Sauvegarde', ready: false },
-  { id: 'listes', label: 'Listes', ready: false }
+  { id: 'utilisateurs', label: 'Utilisateurs / droits', icon: ShieldCheck, ready: true },
+  { id: 'sauvegarde', label: 'Sauvegarde', icon: DatabaseBackup, ready: true },
+  { id: 'listes', label: 'Listes', icon: ListChecks, ready: true }
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
 // Props communes des onglets : valeur courante (brouillon), modification, valeur enregistrée.
-interface TabProps { v: SettingsMap; set: (key: string, value: string) => void }
+interface TabProps { v: SettingsMap; set: (key: string, value: string) => void; saved: SettingsMap }
 
 const DOC_KINDS = [
   { id: 'facture', label: 'Facture' }, { id: 'devis', label: 'Devis' },
@@ -315,7 +317,7 @@ function StockTab({ v, set }: TabProps) {
             <Input type="number" min={0} step="0.001" value={v.stock_default_min} onChange={(e) => set('stock_default_min', e.target.value)} /></div>
           <div><Label>Unité par défaut</Label>
             <Select value={v.stock_default_unit} onChange={(e) => set('stock_default_unit', e.target.value)}>
-              {UNITS.map((u) => <option key={u}>{u}</option>)}
+              {v.list_units.split(',').map((u) => <option key={u}>{u}</option>)}
             </Select></div>
         </div>
       </Card>
@@ -441,6 +443,161 @@ function PartageTab({ v, set }: TabProps) {
   )
 }
 
+// ---------- Onglet Sauvegarde ----------
+const FREQUENCIES: [string, string][] = [['off', 'Désactivée'], ['6h', 'Toutes les 6 heures'], ['12h', 'Toutes les 12 heures'], ['daily', 'Chaque jour'], ['weekly', 'Chaque semaine']]
+
+function SauvegardeTab({ v, set, saved }: TabProps) {
+  async function pick() {
+    const r = await window.api.backup.pickDir()
+    if (r.ok && r.data) set('backup_dir', r.data)
+  }
+  return (
+    <div className="space-y-6">
+      <Card title="Dossier de sauvegarde" hint="Choisissez un disque externe ou une clé USB : une copie sur le même disque ne protège pas d'une panne.">
+        <div className="flex gap-2">
+          <Input readOnly value={v.backup_dir || 'Dossier par défaut de l’application'} className={cn('font-mono text-[13px]', !v.backup_dir && 'text-muted-foreground')} />
+          <Button variant="outline" onClick={pick}><FolderOpen className="h-4 w-4" />Choisir…</Button>
+          {v.backup_dir && <Button variant="ghost" onClick={() => set('backup_dir', '')}>Par défaut</Button>}
+        </div>
+      </Card>
+
+      <Card title="Planification">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+          <div><Label>Fréquence automatique</Label>
+            <Select value={v.backup_frequency} onChange={(e) => set('backup_frequency', e.target.value)}>
+              {FREQUENCIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </Select></div>
+          <div><Label>Copies conservées</Label>
+            <Input type="number" min={1} max={365} value={v.backup_keep} onChange={(e) => set('backup_keep', e.target.value)} />
+            <p className="mt-1.5 text-xs text-muted-foreground">Les plus anciennes sont supprimées automatiquement.</p></div>
+          <div className="col-span-2"><Switch checked={v.backup_on_quit === '1'} onChange={(b) => set('backup_on_quit', b ? '1' : '0')}
+            label="Sauvegarder à la fermeture de l’application" hint="Une copie est faite à chaque fois que vous quittez le logiciel (la fermeture peut prendre quelques secondes)." /></div>
+        </div>
+      </Card>
+
+      <BackupPanel reloadKey={saved.backup_dir + '|' + saved.backup_keep} />
+    </div>
+  )
+}
+
+// ---------- Onglet Listes ----------
+function CategoriesManager() {
+  const [rows, setRows] = useState<{ id: number; name: string; count: number }[]>([])
+  const [newName, setNewName] = useState('')
+  const [msg, setMsg] = useState('')
+  const load = useCallback(async () => { const r = await window.api.categories.stats(); if (r.ok) setRows(r.data) }, [])
+  useEffect(() => { load() }, [load])
+
+  async function act(p: Promise<{ ok: boolean; error?: string }>) {
+    const r = await p
+    setMsg(r.ok ? '' : r.error ?? 'Erreur')
+    load()
+  }
+  return (
+    <Card title="Catégories d’articles" hint="Les modifications de cette liste sont enregistrées immédiatement.">
+      {msg && <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{msg}</p>}
+      <div className="space-y-2">
+        {rows.map((c) => (
+          <div key={c.id} className="flex items-center gap-3">
+            <Input defaultValue={c.name} key={c.name} className="h-9 max-w-sm"
+              onBlur={(e) => e.target.value.trim() !== c.name && act(window.api.categories.update(c.id, e.target.value))}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+            <Badge>{c.count} article(s)</Badge>
+            <Button variant="ghost" size="icon" title="Supprimer" onClick={() =>
+              confirm(c.count ? `Supprimer « ${c.name} » ? Ses ${c.count} article(s) passeront « sans catégorie ».` : `Supprimer « ${c.name} » ?`) && act(window.api.categories.remove(c.id))}>
+              <Trash2 className="h-4 w-4 text-destructive" /></Button>
+          </div>
+        ))}
+        {!rows.length && <p className="text-sm text-muted-foreground">Aucune catégorie.</p>}
+      </div>
+      <div className="mt-4 flex max-w-sm gap-2">
+        <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nouvelle catégorie" className="h-9"
+          onKeyDown={(e) => e.key === 'Enter' && newName.trim() && (act(window.api.categories.create(newName)), setNewName(''))} />
+        <Button variant="outline" size="sm" disabled={!newName.trim()} onClick={() => { act(window.api.categories.create(newName)); setNewName('') }}><Plus className="h-4 w-4" />Ajouter</Button>
+      </div>
+    </Card>
+  )
+}
+
+function ListesTab({ v, set }: TabProps) {
+  const units = v.list_units.split(',').filter(Boolean)
+  const [newUnit, setNewUnit] = useState('')
+  const setUnits = (list: string[]) => set('list_units', list.join(','))
+  function add() {
+    const u = newUnit.trim()
+    if (!u || u.includes(',') || units.some((x) => x.toLowerCase() === u.toLowerCase())) return
+    setUnits([...units, u]); setNewUnit('')
+  }
+  return (
+    <div className="space-y-6">
+      <Card title="Unités de mesure" hint="Unités proposées pour les articles et les lignes de documents. L’unité par défaut (onglet Stock) ne peut pas être retirée.">
+        <div className="flex flex-wrap items-center gap-2">
+          {units.map((u) => (
+            <span key={u} className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium', u === v.stock_default_unit && 'border-primary bg-primary/10 text-primary')}>
+              {u}
+              {u !== v.stock_default_unit && units.length > 1 && <button type="button" title="Retirer" onClick={() => setUnits(units.filter((x) => x !== u))}><X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" /></button>}
+            </span>
+          ))}
+          <div className="flex items-center gap-2">
+            <Input value={newUnit} onChange={(e) => setNewUnit(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())} placeholder="Nouvelle unité" className="h-9 w-36" />
+            <Button type="button" variant="outline" size="sm" onClick={add}><Plus className="h-4 w-4" />Ajouter</Button>
+          </div>
+        </div>
+      </Card>
+      <CategoriesManager />
+    </div>
+  )
+}
+
+// ---------- Onglet Utilisateurs / droits ----------
+function DroitsTab({ v, set }: TabProps) {
+  const has = (key: 'perm_gerant' | 'perm_caissier', id: string) => v[key].split(',').includes(id)
+  const toggle = (key: 'perm_gerant' | 'perm_caissier', id: string, on: boolean) => {
+    const list = v[key].split(',').filter(Boolean).filter((x) => x !== id)
+    set(key, (on ? [...list, id] : list).join(','))
+  }
+  const Check = ({ checked, onChange, disabled }: { checked: boolean; onChange?: (b: boolean) => void; disabled?: boolean }) => (
+    <input type="checkbox" className="h-[18px] w-[18px] accent-[hsl(var(--primary))] disabled:opacity-60" checked={checked} disabled={disabled} onChange={(e) => onChange?.(e.target.checked)} />
+  )
+  return (
+    <div className="space-y-6">
+      <Card title="Droits par rôle" hint="Cochez les écrans accessibles à chaque rôle. L’administrateur a toujours accès à tout. Les comptes se gèrent dans le menu Utilisateurs.">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="py-2 font-medium">Écran</th>
+              <th className="w-28 py-2 text-center font-medium">Administrateur</th>
+              <th className="w-24 py-2 text-center font-medium">Gérant</th>
+              <th className="w-24 py-2 text-center font-medium">Caissier</th>
+            </tr>
+          </thead>
+          <tbody>
+            {PERMISSIONS.map((p) => (
+              <tr key={p.id} className="border-b last:border-0">
+                <td className="py-3"><div className="font-medium">{p.label}</div><div className="text-xs text-muted-foreground">{p.hint}</div></td>
+                <td className="text-center"><Check checked disabled /></td>
+                <td className="text-center"><Check checked={has('perm_gerant', p.id)} onChange={(b) => toggle('perm_gerant', p.id, b)} /></td>
+                <td className="text-center"><Check checked={has('perm_caissier', p.id)} onChange={(b) => toggle('perm_caissier', p.id, b)} /></td>
+              </tr>
+            ))}
+            {['Utilisateurs', 'Paramètres et sauvegarde'].map((label) => (
+              <tr key={label} className="border-b last:border-0 bg-muted/40">
+                <td className="py-3"><div className="font-medium">{label}</div><div className="text-xs text-muted-foreground">Réservé à l’administrateur</div></td>
+                <td className="text-center"><Check checked disabled /></td>
+                <td className="text-center"><Check checked={false} disabled /></td>
+                <td className="text-center"><Check checked={false} disabled /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-4 rounded-md bg-muted px-3 py-2 text-sm">
+          Un rôle sans le droit « Caisse » ne peut plus encaisser. Les remises maximales du caissier se règlent dans l’onglet Ventes.
+        </p>
+      </Card>
+    </div>
+  )
+}
+
 // ---------- Page ----------
 export default function SettingsPage() {
   const [tab, setTab] = useState<TabId>('societe')
@@ -468,7 +625,7 @@ export default function SettingsPage() {
   }
 
   if (!saved) return <div className="p-8 text-muted-foreground">{error || 'Chargement…'}</div>
-  const props: TabProps = { v: draft, set }
+  const props: TabProps = { v: draft, set, saved }
 
   return (
     <div className="mx-auto max-w-[1200px] p-8 pb-28">
@@ -496,6 +653,9 @@ export default function SettingsPage() {
           {tab === 'stock' && <StockTab {...props} />}
           {tab === 'impression' && <ImpressionTab {...props} />}
           {tab === 'partage' && <PartageTab {...props} />}
+          {tab === 'sauvegarde' && <SauvegardeTab {...props} />}
+          {tab === 'listes' && <ListesTab {...props} />}
+          {tab === 'utilisateurs' && <DroitsTab {...props} />}
         </div>
       </div>
 

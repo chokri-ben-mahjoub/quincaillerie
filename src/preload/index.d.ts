@@ -97,10 +97,9 @@ declare global {
       backup: {
         list: () => Promise<Result<BackupInfo[]>>
         config: () => Promise<Result<BackupConfig>>
-        setKeep: (n: number) => Promise<Result<void>>
         now: () => Promise<Result<string>>
         restore: (name: string) => Promise<Result<void>>
-        chooseDir: () => Promise<Result<string | null>>
+        pickDir: () => Promise<Result<string | null>>
       }
       users: {
         list: () => Promise<Result<User[]>>
@@ -131,6 +130,9 @@ declare global {
       categories: {
         list: () => Promise<Result<Category[]>>
         create: (name: string) => Promise<Result<Category>>
+        stats: () => Promise<Result<{ id: number; name: string; count: number }[]>>
+        update: (id: number, name: string) => Promise<Result<void>>
+        remove: (id: number) => Promise<Result<void>>
       }
     }
   }

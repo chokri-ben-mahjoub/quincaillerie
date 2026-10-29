@@ -96,10 +96,9 @@ const api = {
   backup: {
     list: () => call('backup:list'),
     config: () => call('backup:config'),
-    setKeep: (n: number) => call('backup:setKeep', n),
     now: () => call('backup:now'),
     restore: (name: string) => call('backup:restore', name),
-    chooseDir: () => call('backup:chooseDir')
+    pickDir: () => call('backup:pickDir')
   },
   users: {
     list: () => call('users:list'),
@@ -129,7 +128,10 @@ const api = {
   },
   categories: {
     list: () => call('categories:list'),
-    create: (name: string) => call('categories:create', name)
+    create: (name: string) => call('categories:create', name),
+    stats: () => call('categories:stats'),
+    update: (id: number, name: string) => call('categories:update', id, name),
+    remove: (id: number) => call('categories:delete', id)
   }
 }
 

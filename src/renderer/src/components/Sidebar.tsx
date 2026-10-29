@@ -1,5 +1,5 @@
 import { ROLE_LABELS, type User } from '@shared/types'
-import { Settings, BarChart3, ClipboardCheck, ClipboardList, DatabaseBackup, FileSignature, FileText, Hammer, LogOut, Moon, Package, ShoppingCart, Sun, Truck, Users, UserCog, Warehouse } from 'lucide-react'
+import { Settings, BarChart3, ClipboardCheck, ClipboardList, FileSignature, FileText, Hammer, LogOut, Moon, Package, ShoppingCart, Sun, Truck, Users, UserCog, Warehouse } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export const NAV = [
@@ -14,7 +14,6 @@ export const NAV = [
   { id: 'clients', label: 'Clients', icon: Users },
   { id: 'rapports', label: 'Rapports', icon: BarChart3 },
   { id: 'utilisateurs', label: 'Utilisateurs', icon: UserCog },
-  { id: 'sauvegarde', label: 'Sauvegarde', icon: DatabaseBackup },
   { id: 'parametres', label: 'Paramètres', icon: Settings }
 ] as const
 export type PageId = (typeof NAV)[number]['id']

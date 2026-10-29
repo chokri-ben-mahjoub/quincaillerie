@@ -19,6 +19,7 @@ function handle<T>(channel: string, fn: (...args: any[]) => T): void {
 function friendlyError(err: any): string {
   const msg = String(err?.message ?? err)
   if (msg.includes('UNIQUE') && msg.includes('articles.barcode')) return 'Ce code-barres existe déjà.'
+  if (msg.includes('UNIQUE') && msg.includes('categories.name')) return 'Cette catégorie existe déjà.'
   return msg
 }
 
@@ -163,6 +164,15 @@ export function registerArticleHandlers(): void {
     getDb().prepare(`UPDATE articles SET active = 0, barcode = barcode || '#del' || id WHERE id = ?`).run(id)
   })
   handle('categories:list', () => getDb().prepare('SELECT id, name FROM categories ORDER BY name').all() as Category[])
+  handle('categories:stats', () => getDb().prepare(`
+    SELECT c.id, c.name, (SELECT COUNT(*) FROM articles a WHERE a.category_id = c.id AND a.active = 1) AS count
+    FROM categories c ORDER BY c.name`).all() as { id: number; name: string; count: number }[])
+  handle('categories:update', (id: number, name: string) => {
+    if (!name.trim()) throw new Error('Le nom est obligatoire.')
+    getDb().prepare('UPDATE categories SET name = ? WHERE id = ?').run(name.trim(), id)
+  })
+  // Les articles de la catégorie supprimée passent « sans catégorie » (clé étrangère ON DELETE SET NULL).
+  handle('categories:delete', (id: number) => { getDb().prepare('DELETE FROM categories WHERE id = ?').run(id) })
   handle('categories:create', (name: string) => {
     const r = getDb().prepare('INSERT INTO categories(name) VALUES (?)').run(name.trim())
     return { id: Number(r.lastInsertRowid), name: name.trim() } as Category

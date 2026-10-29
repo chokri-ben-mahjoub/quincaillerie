@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { getDb } from '../db'
+import { getSettings } from '../settings'
+import { channelGranted } from '@shared/permissions'
 import type { AuthStatus, Result, Role, User, UserInput } from '@shared/types'
 
 // Utilisateur connecté (session tenue côté principal : l'interface ne peut pas la falsifier).
@@ -22,14 +24,19 @@ function checkPassword(pw: string, stored: string): boolean {
 const mapUser = (r: any): User => ({ id: r.id, username: r.username, fullName: r.full_name, role: r.role, active: !!r.active })
 
 // ---- Droits par rôle (appliqués à chaque appel IPC, voir installGuard) ----
-const CASHIER_CHANNELS = ['sales:create', 'articles:list', 'clients:list', 'categories:list', 'app:config', 'tickets:print', 'tickets:preview', 'tickets:export']
+/** Droits accordés à un rôle (Paramètres > Utilisateurs / droits). L'administrateur a toujours tout. */
+export function grantedPermissions(role: Role): string[] {
+  const s = getSettings()
+  return (role === 'gerant' ? s.perm_gerant : s.perm_caissier).split(',').filter(Boolean)
+}
 
 export function isAllowed(channel: string): boolean {
   if (channel.startsWith('auth:')) return true
   if (!current) return false
   if (current.role === 'admin') return true
-  if (current.role === 'gerant') return !channel.startsWith('users:') && !channel.startsWith('backup:') && !channel.startsWith('settings:')
-  return CASHIER_CHANNELS.includes(channel)
+  if (channel === 'app:config') return true // configuration de l'interface : tout utilisateur connecté
+  if (/^(users|backup|settings):/.test(channel)) return false // réservés à l'administrateur
+  return channelGranted(grantedPermissions(current.role), channel)
 }
 
 /** Enveloppe ipcMain.handle : tout canal est refusé si le rôle n'a pas le droit. À appeler avant les enregistrements. */

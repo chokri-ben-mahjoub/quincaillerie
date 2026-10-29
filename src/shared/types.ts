@@ -150,13 +150,6 @@ export interface Purchase {
 export type Role = 'admin' | 'gerant' | 'caissier'
 export const ROLE_LABELS: Record<Role, string> = { admin: 'Administrateur', gerant: 'Gérant', caissier: 'Caissier' }
 
-/** Pages visibles par rôle (l'accès réel est aussi contrôlé côté principal). */
-export const ROLE_PAGES: Record<Role, string[]> = {
-  admin: ['articles', 'caisse', 'stock', 'achats', 'clients', 'rapports', 'utilisateurs', 'sauvegarde', 'factures', 'devis', 'commandes', 'livraisons', 'parametres'],
-  gerant: ['articles', 'caisse', 'stock', 'achats', 'clients', 'rapports', 'factures', 'devis', 'commandes', 'livraisons'],
-  caissier: ['caisse']
-}
-
 export interface User {
   id: number
   username: string

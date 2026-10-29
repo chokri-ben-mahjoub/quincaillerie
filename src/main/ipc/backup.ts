@@ -2,20 +2,21 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { dataDir, getDb } from '../db'
+import { getSettings } from '../settings'
 import type { BackupConfig, BackupInfo, Result } from '@shared/types'
 
 // Nom de fichier autorisé : empêche toute sortie du dossier de sauvegarde (../).
 const FILE_RE = /^quincaillerie-\d{8}-\d{6}\.db$/
-const DAY_MS = 24 * 3600 * 1000
 
-const getSetting = (key: string): string | null =>
-  (getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as any)?.value ?? null
-const setSetting = (key: string, value: string): void => {
-  getDb().prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value)
+// Date de la dernière sauvegarde : valeur interne, hors du registre des paramètres.
+const getLast = (): string | null => (getDb().prepare(`SELECT value FROM settings WHERE key = 'backup_last'`).get() as any)?.value ?? null
+const setLast = (iso: string): void => {
+  getDb().prepare(`INSERT INTO settings(key, value) VALUES ('backup_last', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(iso)
 }
 
+/** Dossier de sauvegarde (Paramètres > Sauvegarde), ou « backups » dans les données de l'application. */
 function backupDir(): string {
-  const dir = getSetting('backup_dir') || join(dataDir(), 'backups')
+  const dir = getSettings().backup_dir || join(dataDir(), 'backups')
   mkdirSync(dir, { recursive: true })
   return dir
 }
@@ -33,29 +34,43 @@ const stamp = (): string => {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
 
-/** Copie à chaud (compatible WAL) de la base, puis supprime les plus anciennes sauvegardes. */
+/** Copie à chaud (compatible WAL) de la base, puis supprime les plus anciennes sauvegardes (au-delà du nombre conservé). */
 export async function runBackup(): Promise<string> {
   const name = `quincaillerie-${stamp()}.db`
   await getDb().backup(join(backupDir(), name))
-  setSetting('backup_last', new Date().toISOString())
-
-  const keep = Math.max(parseInt(getSetting('backup_keep') ?? '14', 10) || 14, 1)
-  for (const old of listBackups().slice(keep)) unlinkSync(join(backupDir(), old.name))
+  setLast(new Date().toISOString())
+  for (const old of listBackups().slice(Number(getSettings().backup_keep))) unlinkSync(join(backupDir(), old.name))
   return name
 }
 
-/** Sauvegarde automatique : au démarrage puis toutes les 30 min, si la dernière date de plus de 24 h. */
+const FREQUENCY_MS: Record<string, number> = { '6h': 6 * 3600e3, '12h': 12 * 3600e3, daily: 24 * 3600e3, weekly: 7 * 24 * 3600e3 }
+
+/** Une sauvegarde automatique est-elle due ? (« off » : jamais ; jamais sauvegardé : oui). */
+export function isBackupDue(frequency: string, lastIso: string | null, now = Date.now()): boolean {
+  const ms = FREQUENCY_MS[frequency]
+  if (!ms) return false
+  return !lastIso || now - new Date(lastIso).getTime() >= ms
+}
+
+/** Planificateur : contrôle au démarrage puis toutes les 10 min, en relisant les paramètres à chaque fois. + sauvegarde à la fermeture si activée. */
 export function startBackupScheduler(): void {
   const check = async () => {
     try {
-      const last = getSetting('backup_last')
-      if (!last || Date.now() - new Date(last).getTime() > DAY_MS) await runBackup()
+      if (isBackupDue(getSettings().backup_frequency, getLast())) await runBackup()
     } catch (err) {
       console.error('Sauvegarde automatique échouée :', err)
     }
   }
   setTimeout(check, 5000)
-  setInterval(check, 30 * 60 * 1000)
+  setInterval(check, 10 * 60 * 1000)
+
+  let quitting = false
+  app.on('before-quit', (e) => {
+    if (quitting || getSettings().backup_on_quit !== '1') return
+    e.preventDefault() // on attend la fin de la sauvegarde, puis on quitte pour de bon
+    quitting = true
+    runBackup().catch((err) => console.error('Sauvegarde à la fermeture échouée :', err)).finally(() => app.quit())
+  })
 }
 
 /**
@@ -83,17 +98,12 @@ export function registerBackupHandlers(): void {
     })
 
   handle('backup:list', () => listBackups())
-  handle('backup:config', (): BackupConfig => ({
-    dir: backupDir(), keep: parseInt(getSetting('backup_keep') ?? '14', 10) || 14, last: getSetting('backup_last')
-  }))
-  handle('backup:setKeep', (keep: number) => setSetting('backup_keep', String(Math.min(Math.max(Math.round(keep), 1), 365))))
+  handle('backup:config', (): BackupConfig => ({ dir: backupDir(), keep: Number(getSettings().backup_keep), last: getLast() }))
   handle('backup:now', () => runBackup())
   handle('backup:restore', (name: string) => restore(name))
-  handle('backup:chooseDir', async (e: any) => {
-    const win = BrowserWindow.getAllWindows()[0]
-    const r = await dialog.showOpenDialog(win, { title: 'Dossier de sauvegarde', properties: ['openDirectory', 'createDirectory'] })
-    if (r.canceled) return null
-    setSetting('backup_dir', r.filePaths[0])
-    return r.filePaths[0]
+  // Choix du dossier : renvoie le chemin sans l'enregistrer (il passe par la barre « Enregistrer » des Paramètres).
+  handle('backup:pickDir', async () => {
+    const r = await dialog.showOpenDialog(BrowserWindow.getAllWindows()[0], { title: 'Dossier de sauvegarde', properties: ['openDirectory', 'createDirectory'] })
+    return r.canceled ? null : r.filePaths[0]
   })
 }

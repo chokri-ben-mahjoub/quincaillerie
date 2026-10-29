@@ -13,14 +13,14 @@ import DevisPage from '@/pages/DevisPage'
 import CommandesPage from '@/pages/CommandesPage'
 import LivraisonsPage from '@/pages/LivraisonsPage'
 import SettingsPage from '@/pages/SettingsPage'
-import BackupPage from '@/pages/BackupPage'
 import LoginPage from '@/pages/LoginPage'
-import { ROLE_PAGES, type User } from '@shared/types'
+import type { User } from '@shared/types'
 
 export default function App() {
   const [page, setPage] = useState<PageId>('articles')
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark')
   const [user, setUser] = useState<User | null>(null)
+  const [allowedPages, setAllowedPages] = useState<string[] | null>(null) // pages accessibles (Paramètres > Utilisateurs / droits)
   const [firstRun, setFirstRun] = useState(false)
   const [ready, setReady] = useState(false)
 
@@ -38,10 +38,16 @@ export default function App() {
     })
   }, [])
 
+  // Les pages visibles dépendent des droits du rôle : relues à chaque connexion.
+  useEffect(() => {
+    if (!user) { setAllowedPages(null); return }
+    window.api.app.config().then((r) => setAllowedPages(r.ok ? r.data.pages : []))
+  }, [user])
+
   function onLogin(u: User) {
     setUser(u)
     setFirstRun(false)
-    setPage(ROLE_PAGES[u.role][0] as PageId) // page d'accueil selon le rôle
+    setPage(u.role === 'caissier' ? 'caisse' : 'articles') // la page demandée est corrigée plus bas si non autorisée
   }
   async function logout() {
     await window.api.auth.logout()
@@ -50,8 +56,18 @@ export default function App() {
 
   if (!ready) return null
   if (!user) return <LoginPage firstRun={firstRun} onLogin={onLogin} />
+  if (allowedPages === null) return null
 
-  const allowed = NAV.filter((n) => ROLE_PAGES[user.role].includes(n.id))
+  const allowed = NAV.filter((n) => allowedPages.includes(n.id))
+  if (!allowed.length) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
+        <Construction className="h-10 w-10" />
+        <p>Aucun écran n’est autorisé pour votre rôle. Contactez l’administrateur.</p>
+        <button className="text-primary" onClick={logout}>Se déconnecter</button>
+      </div>
+    )
+  }
   const current = allowed.some((n) => n.id === page) ? page : (allowed[0].id as PageId)
 
   const pages: Record<PageId, JSX.Element> = {
@@ -62,7 +78,6 @@ export default function App() {
     clients: <ClientsPage />,
     rapports: <RapportsPage />,
     utilisateurs: <UsersPage />,
-    sauvegarde: <BackupPage />,
     factures: <FacturesPage />,
     devis: <DevisPage />,
     commandes: <CommandesPage />,
@@ -74,11 +89,7 @@ export default function App() {
     <div className="flex h-full">
       <Sidebar page={current} items={allowed} user={user} onNavigate={setPage} onLogout={logout}
         dark={dark} onToggleTheme={() => setDark((d) => !d)} />
-      <main className="min-w-0 flex-1 overflow-auto">
-        {pages[current] ?? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground"><Construction className="h-10 w-10" /></div>
-        )}
-      </main>
+      <main className="min-w-0 flex-1 overflow-auto">{pages[current]}</main>
     </div>
   )
 }

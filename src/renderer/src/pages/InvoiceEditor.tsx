@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
 import { formatMoney } from '@/lib/utils'
-import { UNITS, type Article, type Client } from '@shared/types'
+import { useAppConfig } from '@/lib/useAppConfig'
+import { type Article, type Client } from '@shared/types'
 import { TVA_RATES, amountInWords, computeTotals, type CompanyInfo, type DocKind, type InvoiceInput, type InvoiceLine } from '@shared/invoice'
 
 const today = () => new Date().toLocaleDateString('sv-SE')
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function InvoiceEditor({ kind = 'facture', target, onClose, onSaved }: Props) {
+  const cfg = useAppConfig()
   const isInvoice = kind === 'facture'
   const isOrder = kind === 'bon_commande'
   const isDelivery = kind === 'bon_livraison'
@@ -162,7 +164,7 @@ export default function InvoiceEditor({ kind = 'facture', target, onClose, onSav
                     <tr key={i} className="border-b last:border-0">
                       <td className="px-2 py-1.5"><Input className="h-9" value={l.designation} onChange={(e) => patchLine(i, { designation: e.target.value })} /></td>
                       <td className="w-28 px-2"><Select className="h-9" value={l.unit} onChange={(e) => patchLine(i, { unit: e.target.value })}>
-                        {UNITS.map((u) => <option key={u}>{u}</option>)}</Select></td>
+                        {[...new Set([...cfg.units, l.unit])].map((u) => <option key={u}>{u}</option>)}</Select></td>
                       <td className="w-24 px-2"><Input className="h-9" type="number" step="0.001" min="0" value={l.quantity} onChange={(e) => patchLine(i, { quantity: parseFloat(e.target.value) || 0 })} /></td>
                       <td className="w-32 px-2"><Input className="h-9" type="number" step="0.001" min="0" value={l.unitPrice} onChange={(e) => patchLine(i, { unitPrice: parseFloat(e.target.value) || 0 })} /></td>
                       <td className="w-24 px-2"><Input className="h-9" type="number" step="0.1" min="0" max="100" value={l.discountPct} onChange={(e) => patchLine(i, { discountPct: parseFloat(e.target.value) || 0 })} /></td>

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { getSettings, saveSettings } from '../settings'
-import { currentUser } from './auth'
+import { currentUser, grantedPermissions } from './auth'
+import { ADMIN_PAGES, PERMISSION_IDS } from '@shared/permissions'
 import type { Result } from '@shared/types'
 import type { AppConfig, SettingsMap } from '@shared/settings'
 
@@ -19,6 +20,8 @@ export function registerSettingsHandlers(): void {
         allowBelowStock: s.sales_allow_below_stock === '1', creditDefaultLimit: Number(s.sales_credit_default_limit),
         stockDefaultMin: Number(s.stock_default_min), stockDefaultUnit: s.stock_default_unit,
         alertsEnabled: s.stock_alerts_enabled === '1', alertMarginPct: Number(s.stock_alert_margin_pct),
+        units: s.list_units.split(','),
+        pages: currentUser()?.role === 'admin' ? [...PERMISSION_IDS, ...ADMIN_PAGES] : currentUser() ? grantedPermissions(currentUser()!.role) : [],
         autoPrintTicket: s.print_ticket_auto === '1', whatsappEnabled: s.share_whatsapp_enabled === '1', emailEnabled: s.share_email_enabled === '1'
       } }
     } catch (e: any) { return { ok: false, error: String(e?.message ?? e) } }

@@ -3,8 +3,9 @@
 // toute clé absente retombe sur sa valeur par défaut ci-dessous (donc « rien en dur » ailleurs dans le code).
 
 import { UNITS } from './types'
+import { PERMISSION_IDS } from './permissions'
 
-export type SettingType = 'list' | 'number' | 'text' | 'multiline' | 'int' | 'percent' | 'money' | 'color' | 'bool' | 'rates' | 'choice' | 'image' | 'prefix'
+export type SettingType = 'strings' | 'list' | 'number' | 'text' | 'multiline' | 'int' | 'percent' | 'money' | 'color' | 'bool' | 'rates' | 'choice' | 'image' | 'prefix'
 
 export interface SettingDef {
   key: string
@@ -68,9 +69,22 @@ export const SETTING_DEFS: SettingDef[] = [
 
   // ----- Stock -----
   def('stock_default_min', '0', 'number'), // seuil d'alerte proposé pour un nouvel article
-  def('stock_default_unit', 'pièce', 'choice', { options: [...UNITS] }),
+  def('stock_default_unit', 'pièce', 'text', { maxLength: 20 }), // doit faire partie de list_units
   def('stock_alerts_enabled', '1', 'bool'),
   def('stock_alert_margin_pct', '0', 'int', { min: 0, max: 200 }), // alerte dès seuil + X %
+
+  // ----- Sauvegarde -----
+  def('backup_dir', '', 'text', { maxLength: 300 }), // '' = dossier « backups » des données de l'application
+  def('backup_keep', '14', 'int', { min: 1, max: 365 }), // nombre de sauvegardes conservées
+  def('backup_frequency', 'daily', 'choice', { options: ['off', '6h', '12h', 'daily', 'weekly'] }),
+  def('backup_on_quit', '0', 'bool'), // sauvegarde à la fermeture de l'application
+
+  // ----- Listes -----
+  def('list_units', UNITS.join(','), 'strings', { maxLength: 20 }), // unités proposées (articles, documents)
+
+  // ----- Droits (l'administrateur a tous les droits) -----
+  def('perm_gerant', PERMISSION_IDS.join(','), 'list', { options: PERMISSION_IDS }),
+  def('perm_caissier', 'caisse', 'list', { options: PERMISSION_IDS }),
 
   // ----- Impression ('' = imprimante par défaut de Windows) -----
   def('print_a4_printer', '', 'text', { maxLength: 200 }),
@@ -115,11 +129,21 @@ export function validateSetting(d: SettingDef, raw: unknown): ValidationResult {
     case 'int':
       return Number.isInteger(num) && s !== '' && num >= (d.min ?? 0) && num <= (d.max ?? 1e9)
         ? { ok: true, value: String(num) } : fail(`Entier entre ${d.min} et ${d.max}.`)
+    case 'strings': {
+      const items = s.split(',').map((x) => x.trim()).filter(Boolean)
+      const seen = new Set<string>()
+      for (const it of items) {
+        if (it.length > (d.maxLength ?? 20)) return fail(`${d.maxLength} caractères maximum par élément.`)
+        if (seen.has(it.toLowerCase())) return fail(`« ${it} » apparaît deux fois.`)
+        seen.add(it.toLowerCase())
+      }
+      return items.length >= 1 && items.length <= 60 ? { ok: true, value: items.join(',') } : fail('Entre 1 et 60 éléments.')
+    }
     case 'number':
       return s !== '' && num >= 0 && num <= 1_000_000 ? { ok: true, value: String(num) } : fail('Nombre positif.')
     case 'list': {
       const items = s.split(',').map((x) => x.trim()).filter(Boolean)
-      if (!items.length || items.some((x) => !d.options!.includes(x))) return fail('Au moins un choix valide.')
+      if (items.some((x) => !d.options!.includes(x)) || (!items.length && !d.key.startsWith('perm_'))) return fail('Choix invalide.')
       return { ok: true, value: d.options!.filter((o) => items.includes(o)).join(',') } // ordre canonique
     }
     case 'percent':
@@ -165,6 +189,8 @@ export interface AppConfig {
   stockDefaultUnit: string
   alertsEnabled: boolean
   alertMarginPct: number
+  units: string[] // unités proposées
+  pages: string[] // pages accessibles à l'utilisateur courant
   autoPrintTicket: boolean
   whatsappEnabled: boolean
   emailEnabled: boolean
@@ -173,6 +199,7 @@ export interface AppConfig {
 export const DEFAULT_APP_CONFIG: AppConfig = {
   maxDiscountPct: 100, paymentMethods: ['especes', 'carte', 'cheque', 'credit'], defaultMethod: 'especes', allowBelowStock: false,
   creditDefaultLimit: 0, stockDefaultMin: 0, stockDefaultUnit: 'pièce', alertsEnabled: true, alertMarginPct: 0,
+  units: [...UNITS], pages: [],
   autoPrintTicket: false, whatsappEnabled: true, emailEnabled: true
 }
 

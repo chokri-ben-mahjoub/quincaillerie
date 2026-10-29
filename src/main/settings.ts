@@ -4,10 +4,14 @@ import { SETTING_DEFAULTS, SETTING_DEFS, validateSetting, type SettingsMap } fro
 // Service des paramètres : seul point d'accès à la table clé/valeur pour les autres modules.
 
 /** Toutes les valeurs, avec la valeur par défaut pour les clés jamais modifiées. */
+let cache: SettingsMap | null = null // invalidé à chaque enregistrement
+
 export function getSettings(): SettingsMap {
+  if (cache) return cache
   const rows = getDb().prepare('SELECT key, value FROM settings').all() as { key: string; value: string | null }[]
   const out: SettingsMap = { ...SETTING_DEFAULTS }
   for (const r of rows) if (r.key in out && r.value !== null) out[r.key] = r.value
+  cache = out
   return out
 }
 
@@ -31,6 +35,10 @@ export function saveSettings(changes: Record<string, unknown>): SettingsMap {
   if (errors.length) throw new Error(errors.join('\n'))
 
   const merged = { ...getSettings(), ...clean }
+  // Règle croisée : l'unité par défaut doit exister dans la liste des unités.
+  if (!merged.list_units.split(',').includes(merged.stock_default_unit))
+    throw new Error('L’unité par défaut doit faire partie de la liste des unités.')
+
   // Règle croisée : le mode de paiement par défaut doit être activé.
   if (!merged.sales_payment_methods.split(',').includes(merged.sales_default_method))
     throw new Error('Le mode de paiement par défaut doit faire partie des modes activés.')
@@ -41,5 +49,6 @@ export function saveSettings(changes: Record<string, unknown>): SettingsMap {
 
   const up = getDb().prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
   getDb().transaction(() => { for (const [k, v] of Object.entries(clean)) up.run(k, v) })()
+  cache = null
   return getSettings()
 }

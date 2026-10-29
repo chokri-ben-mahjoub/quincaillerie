@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useAppConfig } from '@/lib/useAppConfig'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
-import { UNITS, type Article, type ArticleInput, type Category } from '@shared/types'
+import { type Article, type ArticleInput, type Category } from '@shared/types'
 
 interface Props {
   open: boolean
@@ -95,7 +95,7 @@ export default function ArticleForm({ open, article, categories, onClose, onSave
           <div>
             <Label>Unité</Label>
             <Select value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-              {UNITS.map((u) => <option key={u}>{u}</option>)}
+              {[...new Set([...cfg.units, form.unit])].map((u) => <option key={u}>{u}</option>)}
             </Select>
           </div>
           <div>
