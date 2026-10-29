@@ -3,6 +3,8 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { writeFileSync } from 'fs'
 import { getDb } from '../db'
+import { getSettings } from '../settings'
+import { formatDocNumber } from '@shared/settings'
 import { fromMillimes, toMillimes } from '@shared/money'
 import {
   computeTotals, type CompanyInfo, type DocKind, type Invoice, type InvoiceInput, type InvoiceSummary, type Quote
@@ -23,40 +25,28 @@ function handle<T>(channel: string, fn: (...args: any[]) => T | Promise<T>): voi
 
 // Facture et devis partagent la même logique : seules les tables, le préfixe de numéro et le statut « validé » changent.
 const KINDS = {
-  facture: { head: 'invoices', items: 'invoice_items', fk: 'invoice_id', prefix: 'FA', counter: 'facture', validStatus: 'validee', label: 'Facture' },
-  devis: { head: 'quotes', items: 'quote_items', fk: 'quote_id', prefix: 'DV', counter: 'devis', validStatus: 'valide', label: 'Devis' },
-  bon_livraison: { head: 'delivery_notes', items: 'dn_items', fk: 'dn_id', prefix: 'BL', counter: 'bon_livraison', validStatus: 'valide', label: 'Bon-de-livraison' },
-  bon_commande: { head: 'purchase_orders', items: 'po_items', fk: 'po_id', prefix: 'BC', counter: 'bon_commande', validStatus: 'valide', label: 'Bon-de-commande' }
+  facture: { head: 'invoices', items: 'invoice_items', fk: 'invoice_id', counter: 'facture', validStatus: 'validee', label: 'Facture' },
+  devis: { head: 'quotes', items: 'quote_items', fk: 'quote_id', counter: 'devis', validStatus: 'valide', label: 'Devis' },
+  bon_livraison: { head: 'delivery_notes', items: 'dn_items', fk: 'dn_id', counter: 'bon_livraison', validStatus: 'valide', label: 'Bon-de-livraison' },
+  bon_commande: { head: 'purchase_orders', items: 'po_items', fk: 'po_id', counter: 'bon_commande', validStatus: 'valide', label: 'Bon-de-commande' }
 } as const
 type Kind = (typeof KINDS)[DocKind]
 
-// ---------- Infos société (table settings) ----------
-const COMPANY_KEYS = {
-  name: 'company_name', taxId: 'company_mf', rc: 'company_rc', address: 'company_address', phone: 'company_phone',
-  email: 'company_email', rib: 'company_rib', logo: 'company_logo', footer: 'company_footer'
-} as const
-
+// ---------- Infos société et réglages de documents (lus depuis les paramètres) ----------
 export function getCompany(): CompanyInfo {
-  const db = getDb()
-  const get = (k: string): string => (db.prepare('SELECT value FROM settings WHERE key = ?').get(k) as any)?.value ?? ''
+  const s = getSettings()
+  const shop = (getDb().prepare(`SELECT value FROM settings WHERE key = 'shop_name'`).get() as any)?.value ?? ''
   return {
-    name: get('company_name') || get('shop_name'), taxId: get('company_mf'), rc: get('company_rc'),
-    address: get('company_address'), phone: get('company_phone'), email: get('company_email'),
-    rib: get('company_rib'), logo: get('company_logo'), footer: get('company_footer'),
-    defaultTva: parseFloat(get('company_tva')) || 19,
-    timbreAmount: fromMillimes(parseInt(get('company_timbre'), 10) || 0)
+    name: s.company_name || shop, taxId: s.company_mf, rc: s.company_rc, address: s.company_address, phone: s.company_phone,
+    email: s.company_email, website: s.company_website, bank: s.company_bank, rib: s.company_rib, logo: s.company_logo,
+    footer: s.company_footer, accentColor: s.doc_accent_color,
+    conditions: { facture: s.doc_conditions_facture, devis: s.doc_conditions_devis,
+                  bon_commande: s.doc_conditions_bon_commande, bon_livraison: s.doc_conditions_bon_livraison },
+    rates: s.tax_rates.split(',').map(Number), defaultTva: Number(s.tax_default_rate),
+    timbreAmount: Number(s.tax_timbre_amount), timbreDefault: s.tax_timbre_default === '1',
+    pricesMode: s.tax_prices_mode === 'TTC' ? 'TTC' : 'HT',
+    quoteValidityDays: Number(s.doc_quote_validity_days), invoiceDueDays: Number(s.doc_invoice_due_days)
   }
-}
-
-function saveCompany(c: CompanyInfo): void {
-  if (c.logo.length > 1_500_000) throw new Error('Logo trop volumineux (1 Mo maximum).')
-  const db = getDb()
-  const up = db.prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-  db.transaction(() => {
-    for (const [field, key] of Object.entries(COMPANY_KEYS)) up.run(key, String((c as any)[field] ?? ''))
-    up.run('company_tva', String(c.defaultTva))
-    up.run('company_timbre', String(toMillimes(c.timbreAmount)))
-  })()
 }
 
 // ---------- Lecture ----------
@@ -129,10 +119,16 @@ function validateDoc(k: Kind, id: number): string {
     if (!doc) throw new Error(`${k.label} introuvable.`)
     if (doc.status !== 'brouillon') throw new Error('Déjà validé.')
     const year = parseInt(doc.issue_date.slice(0, 4), 10)
+    const cfg = getSettings()
+    // Compteur par année, ou continu (année 0) si le réglage « repartir à 1 chaque année » est désactivé.
+    const counterYear = cfg.doc_reset_yearly === '1' ? year : 0
     db.prepare(`INSERT INTO doc_counters(doc_type, year, last) VALUES (?, ?, 1)
-                ON CONFLICT(doc_type, year) DO UPDATE SET last = last + 1`).run(k.counter, year)
-    const { last } = db.prepare('SELECT last FROM doc_counters WHERE doc_type = ? AND year = ?').get(k.counter, year) as any
-    const number = `${k.prefix}-${year}-${String(last).padStart(4, '0')}`
+                ON CONFLICT(doc_type, year) DO UPDATE SET last = last + 1`).run(k.counter, counterYear)
+    const { last } = db.prepare('SELECT last FROM doc_counters WHERE doc_type = ? AND year = ?').get(k.counter, counterYear) as any
+    const number = formatDocNumber({
+      prefix: cfg['doc_prefix_' + k.counter], separator: cfg.doc_separator,
+      includeYear: cfg.doc_include_year === '1', digits: Number(cfg.doc_number_digits)
+    }, year, last)
     db.prepare(`UPDATE ${k.head} SET status = ?, number = ?, validated_at = datetime('now','localtime') WHERE id = ?`)
       .run(k.validStatus, number, id)
     return number
@@ -189,7 +185,6 @@ export function registerInvoiceHandlers(): void {
   const ownerOf = (e: Electron.IpcMainInvokeEvent) => BrowserWindow.fromWebContents(e.sender)
 
   handle('company:get', () => getCompany())
-  handle('company:set', (c: CompanyInfo) => saveCompany(c))
 
   // Mêmes canaux pour les quatre types : invoices:*, quotes:*, orders:* et deliveries:*
   const NAMESPACES = { facture: 'invoices', devis: 'quotes', bon_commande: 'orders', bon_livraison: 'deliveries' } as const

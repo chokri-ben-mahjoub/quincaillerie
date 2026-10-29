@@ -385,5 +385,13 @@ export const MIGRATIONS: string[] = [
   CREATE TRIGGER trg_dnitems_locked_delete BEFORE DELETE ON dn_items
   WHEN (SELECT status FROM delivery_notes WHERE id = OLD.dn_id) <> 'brouillon'
   BEGIN SELECT RAISE(ABORT, 'Bon de livraison validé : modification impossible.'); END;
+  `,
+
+  /* ---------- Version 7 : registre des paramètres (clés renommées, timbre en dinars) ---------- */
+  `
+  UPDATE settings SET key = 'tax_default_rate' WHERE key = 'company_tva';
+  INSERT OR REPLACE INTO settings(key, value)
+    SELECT 'tax_timbre_amount', printf('%.3f', CAST(value AS REAL) / 1000.0) FROM settings WHERE key = 'company_timbre';
+  DELETE FROM settings WHERE key = 'company_timbre';
   `
 ]

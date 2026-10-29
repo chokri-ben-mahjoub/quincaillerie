@@ -25,21 +25,21 @@ const CSS = `
   .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
   .company { flex: 1; }
   .logo { max-height: 22mm; max-width: 62mm; margin-bottom: 6px; display: block; }
-  .company h1 { margin: 0 0 4px; font-size: 15pt; color: #14213d; letter-spacing: .2px; }
+  .company h1 { margin: 0 0 4px; font-size: 15pt; color: var(--accent); letter-spacing: .2px; }
   .company p { margin: 0; font-size: 9pt; color: #3d4659; }
   .company b { color: #1b2233; }
   .doc { text-align: right; min-width: 62mm; }
-  .doc .title { font-size: 20pt; font-weight: 700; color: #14213d; letter-spacing: 2px; line-height: 1; }
+  .doc .title { font-size: 20pt; font-weight: 700; color: var(--accent); letter-spacing: 2px; line-height: 1; }
   .doc .num { margin-top: 6px; font-size: 12pt; font-weight: 600; }
   .doc .draft { margin-top: 6px; display: inline-block; padding: 2px 10px; border: 1.5px solid #b45309; color: #b45309;
                 font-weight: 700; font-size: 9pt; border-radius: 4px; letter-spacing: 1px; }
-  .rule { height: 3px; background: #14213d; margin: 12px 0 14px; border-radius: 2px; }
+  .rule { height: 3px; background: var(--accent); margin: 12px 0 14px; border-radius: 2px; }
 
   /* Blocs client / informations */
   .boxes { display: flex; gap: 14px; margin-bottom: 14px; }
   .box { flex: 1; border: 1px solid #c9cfdb; border-radius: 6px; padding: 8px 12px; }
   .box h3 { margin: 0 0 5px; font-size: 8pt; text-transform: uppercase; letter-spacing: 1.2px; color: #5b6478; font-weight: 600; }
-  .box .name { font-size: 11pt; font-weight: 700; color: #14213d; }
+  .box .name { font-size: 11pt; font-weight: 700; color: var(--accent); }
   .box p { margin: 1px 0; font-size: 9.5pt; }
   .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 9.5pt; }
   .kv span:nth-child(odd) { color: #5b6478; }
@@ -48,7 +48,7 @@ const CSS = `
   table.items { width: 100%; border-collapse: collapse; }
   table.items thead { display: table-header-group; }
   table.items tr { break-inside: avoid; page-break-inside: avoid; }
-  table.items th { background: #14213d; color: #fff; font-size: 8.5pt; font-weight: 600; text-transform: uppercase;
+  table.items th { background: var(--accent); color: #fff; font-size: 8.5pt; font-weight: 600; text-transform: uppercase;
                    letter-spacing: .5px; padding: 7px 6px; text-align: right; }
   table.items th:nth-child(2) { text-align: left; }
   table.items th:first-child { text-align: center; }
@@ -61,16 +61,16 @@ const CSS = `
   /* Totaux + montant en lettres : toujours groupés, jamais coupés entre deux pages */
   .summary { display: flex; justify-content: space-between; gap: 18px; margin-top: 14px; break-inside: avoid; page-break-inside: avoid; }
   .left { flex: 1; }
-  .words { border: 1px solid #c9cfdb; border-left: 4px solid #14213d; border-radius: 4px; padding: 8px 12px; font-size: 9.5pt; }
+  .words { border: 1px solid #c9cfdb; border-left: 4px solid var(--accent); border-radius: 4px; padding: 8px 12px; font-size: 9.5pt; }
   .words small { display: block; color: #5b6478; margin-bottom: 2px; }
-  .words b { color: #14213d; }
+  .words b { color: var(--accent); }
   .pay { margin-top: 10px; font-size: 9pt; }
   .pay p { margin: 2px 0; }
   .totals { width: 76mm; border-collapse: collapse; font-size: 10pt; }
   .totals td { padding: 5px 8px; border-bottom: 1px solid #dde2ec; }
   .totals td:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .totals tr.tva td { font-size: 9pt; color: #3d4659; }
-  .totals tr.grand td { background: #14213d; color: #fff; font-size: 11.5pt; font-weight: 700; border: 0; padding: 8px; }
+  .totals tr.grand td { background: var(--accent); color: #fff; font-size: 11.5pt; font-weight: 700; border: 0; padding: 8px; }
 
   .notes { margin-top: 12px; font-size: 9pt; break-inside: avoid; }
   .sign { display: flex; gap: 18px; margin-top: 16px; break-inside: avoid; page-break-inside: avoid; }
@@ -104,7 +104,7 @@ export function renderInvoiceHtml(inv: DocView, co: CompanyInfo, kind: DocKind =
 
   const companyLines = [
     co.address && esc(co.address),
-    [co.phone && `Tél : ${esc(co.phone)}`, co.email && esc(co.email)].filter(Boolean).join(' &nbsp;•&nbsp; '),
+    [co.phone && `Tél : ${esc(co.phone)}`, co.email && esc(co.email), co.website && esc(co.website)].filter(Boolean).join(' &nbsp;•&nbsp; '),
     [co.taxId && `<b>MF :</b> ${esc(co.taxId)}`, co.rc && `<b>RC :</b> ${esc(co.rc)}`].filter(Boolean).join(' &nbsp;&nbsp; ')
   ].filter(Boolean).map((l) => `<p>${l}</p>`).join('')
 
@@ -124,7 +124,7 @@ export function renderInvoiceHtml(inv: DocView, co: CompanyInfo, kind: DocKind =
     <tr class="tva"><td>TVA ${qty(g.rate)} % <span class="muted">(base ${money(g.base)})</span></td><td>${money(g.tva)}</td></tr>`).join('')
 
   return `<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><title>${L.name} ${esc(inv.number ?? 'brouillon')}</title><style>${CSS}</style></head>
+<html lang="fr"><head><meta charset="utf-8"><title>${L.name} ${esc(inv.number ?? 'brouillon')}</title><style>:root { --accent: ${esc(co.accentColor)}; }${CSS}</style></head>
 <body>
   ${isDraft ? '<div class="watermark">BROUILLON</div>' : ''}
 
@@ -171,7 +171,7 @@ export function renderInvoiceHtml(inv: DocView, co: CompanyInfo, kind: DocKind =
     <div class="left">
       <div class="words"><small>${L.words}</small><b>${esc(amountInWords(t.totalTtc))}</b></div>
       <div class="pay">
-        ${kind === 'facture' && co.rib ? `<p><b>RIB :</b> ${esc(co.rib)}</p>` : ''}
+        ${kind === 'facture' && co.rib ? `<p><b>RIB :</b> ${esc(co.rib)}${co.bank ? ` — ${esc(co.bank)}` : ''}</p>` : ''}
         ${inv.timbre ? `<p class="muted">Droit de timbre fiscal inclus : ${money(inv.timbreAmount)} DT</p>` : ''}
       </div>
     </div>
@@ -184,6 +184,7 @@ export function renderInvoiceHtml(inv: DocView, co: CompanyInfo, kind: DocKind =
     </table>
   </div>
 
+  ${co.conditions[kind] ? `<div class="notes"><b>Conditions :</b> ${nl2br(co.conditions[kind])}</div>` : ''}
   ${inv.notes ? `<div class="notes"><b>Notes :</b> ${nl2br(inv.notes)}</div>` : ''}
 
   <div class="sign">

@@ -12,6 +12,7 @@ import FacturesPage from '@/pages/FacturesPage'
 import DevisPage from '@/pages/DevisPage'
 import CommandesPage from '@/pages/CommandesPage'
 import LivraisonsPage from '@/pages/LivraisonsPage'
+import SettingsPage from '@/pages/SettingsPage'
 import BackupPage from '@/pages/BackupPage'
 import LoginPage from '@/pages/LoginPage'
 import { ROLE_PAGES, type User } from '@shared/types'
@@ -65,7 +66,8 @@ export default function App() {
     factures: <FacturesPage />,
     devis: <DevisPage />,
     commandes: <CommandesPage />,
-    livraisons: <LivraisonsPage />
+    livraisons: <LivraisonsPage />,
+    parametres: <SettingsPage />
   }
 
   return (

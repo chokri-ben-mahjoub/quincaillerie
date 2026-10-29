@@ -119,11 +119,20 @@ export interface CompanyInfo {
   address: string
   phone: string
   email: string
+  website: string
+  bank: string
   rib: string
   logo: string // image en data URL ('' = aucun)
-  footer: string // mention de bas de facture
+  footer: string // pied de page des documents
+  accentColor: string // couleur des documents (#RRGGBB)
+  conditions: Record<DocKind, string> // conditions imprimées, par type de document
+  rates: number[] // taux de TVA proposés
   defaultTva: number
-  timbreAmount: number // droit de timbre, en dinars (1.000 en Tunisie)
+  timbreAmount: number // droit de timbre, en dinars
+  timbreDefault: boolean // timbre coché par défaut sur les nouvelles factures
+  pricesMode: 'HT' | 'TTC' // les prix du catalogue sont-ils HT ou TTC ?
+  quoteValidityDays: number
+  invoiceDueDays: number
 }
 
 /** Calcule HT, TVA par taux, timbre et TTC. Arrondis au millime, ligne par ligne puis par taux. */

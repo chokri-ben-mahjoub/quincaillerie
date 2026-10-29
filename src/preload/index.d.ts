@@ -1,3 +1,4 @@
+import type { SettingsMap } from '@shared/settings'
 import type { CompanyInfo, Invoice, InvoiceInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
 import type { BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
 
@@ -72,7 +73,10 @@ declare global {
       }
       company: {
         get: () => Promise<Result<CompanyInfo>>
-        set: (c: CompanyInfo) => Promise<Result<void>>
+      }
+      settings: {
+        getAll: () => Promise<Result<SettingsMap>>
+        set: (changes: Record<string, string>) => Promise<Result<SettingsMap>>
       }
       backup: {
         list: () => Promise<Result<BackupInfo[]>>

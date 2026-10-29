@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Building2, Download, Eye, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Download, Eye, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatMoney } from '@/lib/utils'
 import type { InvoiceSummary } from '@shared/invoice'
-import CompanyDialog from './CompanyDialog'
 import InvoiceEditor from './InvoiceEditor'
 
 const fmtDate = (iso: string) => iso.split('-').reverse().join('/')
@@ -14,7 +13,6 @@ export default function FacturesPage() {
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([])
   const [search, setSearch] = useState('')
   const [editor, setEditor] = useState<number | 'new' | null>(null)
-  const [companyOpen, setCompanyOpen] = useState(false)
   const [message, setMessage] = useState('')
 
   const load = useCallback(async () => {
@@ -46,7 +44,6 @@ export default function FacturesPage() {
           <p className="text-muted-foreground">Facturation A4 avec TVA, timbre fiscal et montant en lettres.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setCompanyOpen(true)}><Building2 className="h-4 w-4" />Infos société</Button>
           <Button onClick={() => setEditor('new')}><Plus className="h-4 w-4" />Nouvelle facture</Button>
         </div>
       </header>
@@ -105,7 +102,6 @@ export default function FacturesPage() {
       </section>
 
       <InvoiceEditor target={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); load() }} />
-      <CompanyDialog open={companyOpen} onClose={() => setCompanyOpen(false)} onSaved={() => { setCompanyOpen(false); setMessage('Informations société enregistrées.') }} />
     </div>
   )
 }

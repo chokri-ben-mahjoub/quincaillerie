@@ -28,7 +28,7 @@ export function isAllowed(channel: string): boolean {
   if (channel.startsWith('auth:')) return true
   if (!current) return false
   if (current.role === 'admin') return true
-  if (current.role === 'gerant') return !channel.startsWith('users:') && !channel.startsWith('backup:')
+  if (current.role === 'gerant') return !channel.startsWith('users:') && !channel.startsWith('backup:') && !channel.startsWith('settings:')
   return CASHIER_CHANNELS.includes(channel)
 }
 

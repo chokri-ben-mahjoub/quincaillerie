@@ -8,6 +8,7 @@ import { UNITS, type Article, type Client } from '@shared/types'
 import { TVA_RATES, amountInWords, computeTotals, type CompanyInfo, type DocKind, type InvoiceInput, type InvoiceLine } from '@shared/invoice'
 
 const today = () => new Date().toLocaleDateString('sv-SE')
+const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('sv-SE') }
 const PAYMENTS = ['Espèces', 'Chèque', 'Virement', 'Carte bancaire', 'Traite', 'À crédit']
 
 interface Props {
@@ -42,8 +43,10 @@ export default function InvoiceEditor({ kind = 'facture', target, onClose, onSav
       if (cl.ok) setClients((cl.data as any[]).map((c) => ({ id: c.id, name: c.name, phone: c.phone, address: c.address, creditLimit: 0, balance: 0 })))
       if (ar.ok) setArticles(ar.data)
       if (target === 'new') {
-        setForm({ clientId: null, clientName: '', clientAddress: '', clientTaxId: '', clientPhone: '', issueDate: today(), dueDate: null,
-          paymentMethod: 'Espèces', notes: '', timbre: isInvoice && co.data.timbreAmount > 0, lines: [] })
+        setForm({ clientId: null, clientName: '', clientAddress: '', clientTaxId: '', clientPhone: '', issueDate: today(),
+          dueDate: (kind === 'devis' ? co.data.quoteValidityDays : isInvoice ? co.data.invoiceDueDays : 0) > 0
+            ? inDays(kind === 'devis' ? co.data.quoteValidityDays : co.data.invoiceDueDays) : null,
+          paymentMethod: 'Espèces', notes: '', timbre: isInvoice && co.data.timbreDefault && co.data.timbreAmount > 0, lines: [] })
       } else {
         const r = await api.get(target)
         if (r.ok) setForm(r.data); else setError(r.error)
@@ -59,6 +62,12 @@ export default function InvoiceEditor({ kind = 'facture', target, onClose, onSav
   const patchLine = (i: number, p: Partial<InvoiceLine>) =>
     setForm((f) => (f ? { ...f, lines: f.lines.map((l, n) => (n === i ? { ...l, ...p } : l)) } : f))
 
+  // Prix du catalogue -> prix HT de la ligne, selon le réglage « prix HT ou TTC » (Paramètres > Taxes).
+  const fromArticle = (a: Article): Partial<InvoiceLine> => {
+    const rate = company?.defaultTva ?? 19
+    const ht = company?.pricesMode === 'TTC' ? Math.round((a.salePrice / (1 + rate / 100)) * 1000) / 1000 : a.salePrice
+    return { designation: a.designation, unit: a.unit, unitPrice: ht }
+  }
   const newLine = (p: Partial<InvoiceLine> = {}): InvoiceLine => ({
     designation: '', unit: 'pièce', quantity: 1, unitPrice: 0, discountPct: 0, tvaRate: company?.defaultTva ?? 19, ...p
   })
@@ -127,14 +136,14 @@ export default function InvoiceEditor({ kind = 'facture', target, onClose, onSav
               <div className="relative flex items-center gap-3 border-b p-3">
                 <Input className="max-w-md" placeholder="Ajouter un article du catalogue (nom ou code-barres)…" value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && matches.length) { e.preventDefault(); addLine({ designation: matches[0].designation, unit: matches[0].unit, unitPrice: matches[0].salePrice }); setQuery('') } }} />
+                  onKeyDown={(e) => { if (e.key === 'Enter' && matches.length) { e.preventDefault(); addLine(fromArticle(matches[0])); setQuery('') } }} />
                 <Button variant="outline" onClick={() => addLine()}><Plus className="h-4 w-4" />Ligne libre</Button>
                 {matches.length > 0 && (
                   <ul className="absolute left-3 top-14 z-10 w-[28rem] overflow-hidden rounded-md border bg-card shadow-soft">
                     {matches.map((a) => (
                       <li key={a.id}>
                         <button className="flex w-full justify-between px-3 py-2 text-left text-sm hover:bg-muted"
-                          onClick={() => { addLine({ designation: a.designation, unit: a.unit, unitPrice: a.salePrice }); setQuery('') }}>
+                          onClick={() => { addLine(fromArticle(a)); setQuery('') }}>
                           <span>{a.designation}</span><span className="tnum text-muted-foreground">{formatMoney(a.salePrice)}</span>
                         </button>
                       </li>
@@ -158,7 +167,7 @@ export default function InvoiceEditor({ kind = 'facture', target, onClose, onSav
                       <td className="w-32 px-2"><Input className="h-9" type="number" step="0.001" min="0" value={l.unitPrice} onChange={(e) => patchLine(i, { unitPrice: parseFloat(e.target.value) || 0 })} /></td>
                       <td className="w-24 px-2"><Input className="h-9" type="number" step="0.1" min="0" max="100" value={l.discountPct} onChange={(e) => patchLine(i, { discountPct: parseFloat(e.target.value) || 0 })} /></td>
                       <td className="w-24 px-2"><Select className="h-9" value={l.tvaRate} onChange={(e) => patchLine(i, { tvaRate: Number(e.target.value) })}>
-                        {TVA_RATES.map((r) => <option key={r} value={r}>{r} %</option>)}</Select></td>
+                        {[...new Set([...company.rates, l.tvaRate])].sort((x, y) => x - y).map((r) => <option key={r} value={r}>{r} %</option>)}</Select></td>
                       <td className="tnum w-32 px-2 text-right font-semibold">{formatMoney(totals.lineTotals[i])}</td>
                       <td className="px-2"><Button variant="ghost" size="icon" onClick={() => set('lines', form.lines.filter((_, n) => n !== i))}><Trash2 className="h-4 w-4 text-destructive" /></Button></td>
                     </tr>
