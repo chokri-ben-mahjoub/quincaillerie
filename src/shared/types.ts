@@ -80,7 +80,8 @@ export type PayMethod = 'especes' | 'carte' | 'cheque' | 'credit'
 export const PAY_LABELS: Record<PayMethod, string> = { especes: 'Espèces', carte: 'Carte', cheque: 'Chèque', credit: 'Crédit' }
 
 export interface SaleInput {
-  clientId?: number | null // obligatoire pour une vente à crédit
+  clientId?: number | null // facultatif ; obligatoire pour une vente à crédit
+  replaces?: number // id d'une vente à remplacer (modification d'une vente encaissée)
   items: { articleId: number; quantity: number }[]
   discount: number // remise globale en dinars
   method: PayMethod
@@ -200,4 +201,48 @@ export interface ReportData {
 /** Ticket de caisse imprimable : le reçu de la vente + le caissier. */
 export interface Ticket extends Receipt {
   cashier: string | null
+}
+
+// ---------- Consultation et correction des ventes ----------
+export interface SaleSummary {
+  id: number
+  number: string
+  createdAt: string
+  clientId: number | null
+  clientName: string | null
+  total: number
+  discount: number
+  paid: number
+  due: number // reste à crédit
+  method: PayMethod
+  status: 'validee' | 'annulee'
+  cancelReason: string | null
+  replacedBy: number | null
+  cashier: string | null
+  itemCount: number
+}
+
+export interface SaleDetail extends SaleSummary {
+  lines: { articleId: number; designation: string; unit: string; quantity: number; unitPrice: number }[]
+  /** L'utilisateur courant peut-il modifier / annuler cette vente ? */
+  editable: boolean
+}
+
+/** Ligne du relevé de crédit d'un client (vente à crédit ou règlement), avec le solde cumulé. */
+export interface StatementEntry {
+  date: string
+  kind: 'vente' | 'reglement'
+  ref: string
+  label: string
+  debit: number // ajouté à la dette
+  credit: number // retranché de la dette
+  balance: number // dette après cette ligne
+  cancelled: boolean
+}
+
+export interface ClientStatement {
+  client: Client
+  entries: StatementEntry[]
+  salesCount: number // ventes validées liées à ce client (tous modes de paiement)
+  salesTotal: number
 }

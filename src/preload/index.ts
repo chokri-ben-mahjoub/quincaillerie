@@ -18,7 +18,10 @@ const api = {
     add: (m: MovementInput) => call('stock:add', m)
   },
   sales: {
-    create: (s: SaleInput) => call('sales:create', s)
+    create: (s: SaleInput) => call('sales:create', s),
+    list: (scope: 'today' | 'week' | 'all', search: string) => call('sales:list', scope, search),
+    get: (id: number) => call('sales:get', id),
+    cancel: (id: number, reason: string) => call('sales:cancel', id, reason)
   },
   auth: {
     status: () => call('auth:status'),
@@ -118,7 +121,8 @@ const api = {
     create: (c: ClientInput) => call('clients:create', c),
     update: (id: number, c: ClientInput) => call('clients:update', id, c),
     remove: (id: number) => call('clients:delete', id),
-    pay: (id: number, amount: number, note: string) => call('clients:pay', id, amount, note)
+    pay: (id: number, amount: number, note: string) => call('clients:pay', id, amount, note),
+    statement: (id: number) => call('clients:statement', id)
   },
   suppliers: {
     list: () => call('suppliers:list'),

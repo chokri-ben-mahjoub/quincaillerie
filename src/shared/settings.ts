@@ -66,6 +66,8 @@ export const SETTING_DEFS: SettingDef[] = [
   def('sales_default_method', 'especes', 'choice', { options: ['especes', 'carte', 'cheque', 'credit'] }),
   def('sales_allow_below_stock', '0', 'bool'), // autoriser la vente quand le stock est insuffisant
   def('sales_credit_default_limit', '0.000', 'money'), // plafond de crédit proposé pour un nouveau client
+  def('sales_allow_edit', '1', 'bool'), // le caissier peut modifier / annuler une vente encaissée
+  def('sales_cashier_edit_hours', '24', 'int', { min: 0, max: 720 }), // délai pour le caissier (0 = sans limite)
 
   // ----- Stock -----
   def('stock_default_min', '0', 'number'), // seuil d'alerte proposé pour un nouvel article
@@ -191,6 +193,7 @@ export interface AppConfig {
   alertMarginPct: number
   units: string[] // unités proposées
   pages: string[] // pages accessibles à l'utilisateur courant
+  allowSaleEdit: boolean // l'utilisateur courant peut modifier / annuler les ventes
   autoPrintTicket: boolean
   whatsappEnabled: boolean
   emailEnabled: boolean
@@ -200,7 +203,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   maxDiscountPct: 100, paymentMethods: ['especes', 'carte', 'cheque', 'credit'], defaultMethod: 'especes', allowBelowStock: false,
   creditDefaultLimit: 0, stockDefaultMin: 0, stockDefaultUnit: 'pièce', alertsEnabled: true, alertMarginPct: 0,
   units: [...UNITS], pages: [],
-  autoPrintTicket: false, whatsappEnabled: true, emailEnabled: true
+  allowSaleEdit: true, autoPrintTicket: false, whatsappEnabled: true, emailEnabled: true
 }
 
 /** Niveau de stock d'un article : rupture, bas (alerte) ou normal. L'alerte se déclenche à seuil + marge %. */

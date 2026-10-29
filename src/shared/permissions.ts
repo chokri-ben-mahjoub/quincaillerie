@@ -14,7 +14,7 @@ const DOC_COMMON = ['company:get', 'share:', 'print:', 'clients:list', 'supplier
 
 export const PERMISSIONS: Permission[] = [
   { id: 'articles', label: 'Articles', hint: 'Catalogue, import Excel, catégories', channels: ['articles:', 'categories:'] },
-  { id: 'caisse', label: 'Caisse', hint: 'Ventes et tickets', channels: ['sales:', 'tickets:', 'articles:list', 'clients:list', 'categories:list'] },
+  { id: 'caisse', label: 'Caisse', hint: 'Ventes et tickets', channels: ['sales:', 'tickets:', 'articles:list', 'clients:list', 'clients:statement', 'clients:pay', 'categories:list'] },
   { id: 'stock', label: 'Stock', hint: 'Mouvements et alertes', channels: ['stock:', 'articles:list'] },
   { id: 'achats', label: 'Achats & fournisseurs', hint: 'Réceptions, dettes fournisseurs', channels: ['purchases:', 'suppliers:', 'articles:list'] },
   { id: 'clients', label: 'Clients', hint: 'Fichier clients, crédit, règlements', channels: ['clients:'] },

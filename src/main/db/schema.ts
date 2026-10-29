@@ -393,5 +393,16 @@ export const MIGRATIONS: string[] = [
   INSERT OR REPLACE INTO settings(key, value)
     SELECT 'tax_timbre_amount', printf('%.3f', CAST(value AS REAL) / 1000.0) FROM settings WHERE key = 'company_timbre';
   DELETE FROM settings WHERE key = 'company_timbre';
+  `,
+
+  /* ---------- Version 8 : annulation / modification des ventes ---------- */
+  `
+  -- Une vente n'est jamais effacée : elle passe à « annulée » (le stock est rendu par des mouvements, la dette reprise).
+  ALTER TABLE sales ADD COLUMN status TEXT NOT NULL DEFAULT 'validee' CHECK (status IN ('validee','annulee'));
+  ALTER TABLE sales ADD COLUMN cancelled_at TEXT;
+  ALTER TABLE sales ADD COLUMN cancelled_by INTEGER REFERENCES users(id);
+  ALTER TABLE sales ADD COLUMN cancel_reason TEXT;
+  ALTER TABLE sales ADD COLUMN replaced_by INTEGER REFERENCES sales(id); -- vente qui remplace celle-ci après modification
+  CREATE INDEX idx_sales_client ON sales(client_id);
   `
 ]

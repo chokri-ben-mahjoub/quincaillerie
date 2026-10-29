@@ -296,6 +296,18 @@ function VentesTab({ v, set }: TabProps) {
           label="Autoriser la vente sous stock" hint="Permet de vendre un article dont le stock est insuffisant : le stock devient négatif jusqu’à la prochaine réception." />
       </Card>
 
+      <Card title="Modification des ventes" hint="Une vente encaissée n'est jamais effacée : elle est annulée (le stock est rendu, la dette reprise) ou remplacée par une vente corrigée.">
+        <div className="space-y-4">
+          <Switch checked={v.sales_allow_edit === '1'} onChange={(b) => set('sales_allow_edit', b ? '1' : '0')}
+            label="Autoriser le caissier à modifier ou annuler une vente" hint="Le gérant et l’administrateur peuvent toujours le faire." />
+          <div className={cn('w-64', v.sales_allow_edit !== '1' && 'pointer-events-none opacity-50')}>
+            <Label>Délai pour le caissier (heures)</Label>
+            <Input type="number" min={0} max={720} value={v.sales_cashier_edit_hours} onChange={(e) => set('sales_cashier_edit_hours', e.target.value)} />
+            <p className="mt-1.5 text-xs text-muted-foreground">0 = sans limite de temps.</p>
+          </div>
+        </div>
+      </Card>
+
       <Card title="Crédit clients">
         <div className="w-64">
           <Label>Plafond proposé pour un nouveau client (DT)</Label>

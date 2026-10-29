@@ -6,7 +6,7 @@ import type { ReportData, Result } from '@shared/types'
 /** Calcule tous les indicateurs d'une période (dates incluses, format AAAA-MM-JJ). */
 function buildReport(from: string, to: string): ReportData {
   const db = getDb()
-  const range = `date(s.created_at) BETWEEN ? AND ?`
+  const range = `date(s.created_at) BETWEEN ? AND ? AND s.status = 'validee'`
 
   const kpi = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS revenue FROM sales s WHERE ${range}`).get(from, to) as any
   const cost = db.prepare(`

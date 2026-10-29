@@ -2,7 +2,7 @@ import type { ShareDraft, ShareRequest } from '@shared/share'
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
 import type { CompanyInfo, Invoice, InvoiceInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
-import type { BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
+import type { ClientStatement, SaleDetail, SaleSummary, BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
 
 // Typage de window.api côté interface.
 declare global {
@@ -21,6 +21,9 @@ declare global {
       }
       sales: {
         create: (s: SaleInput) => Promise<Result<Receipt>>
+        list: (scope: 'today' | 'week' | 'all', search: string) => Promise<Result<SaleSummary[]>>
+        get: (id: number) => Promise<Result<SaleDetail>>
+        cancel: (id: number, reason: string) => Promise<Result<void>>
       }
       auth: {
         status: () => Promise<Result<AuthStatus>>
@@ -121,6 +124,7 @@ declare global {
         update: (id: number, c: ClientInput) => Promise<Result<void>>
         remove: (id: number) => Promise<Result<void>>
         pay: (id: number, amount: number, note: string) => Promise<Result<void>>
+        statement: (id: number) => Promise<Result<ClientStatement>>
       }
       suppliers: {
         list: () => Promise<Result<Supplier[]>>
