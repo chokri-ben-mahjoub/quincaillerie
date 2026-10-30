@@ -1,7 +1,7 @@
 import type { ShareDraft, ShareRequest } from '@shared/share'
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
-import type { CompanyInfo, Invoice, InvoiceInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
+import type { CompanyInfo, Invoice, InvoiceInput, InvoicePayment, InvoicePaymentInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
 import type { ClientStatement, SaleDetail, SaleSummary, BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
 
 // Typage de window.api côté interface.
@@ -40,6 +40,9 @@ declare global {
         preview: (id: number) => Promise<Result<void>>
         exportPdf: (id: number) => Promise<Result<string | null>>
         print: (id: number) => Promise<Result<boolean>>
+        payments: (id: number) => Promise<Result<InvoicePayment[]>>
+        pay: (id: number, p: InvoicePaymentInput) => Promise<Result<void>>
+        unpay: (paymentId: number) => Promise<Result<void>>
       }
       quotes: {
         list: () => Promise<Result<QuoteSummary[]>>

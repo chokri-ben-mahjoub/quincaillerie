@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { InvoiceInput } from '@shared/invoice'
+import type { InvoiceInput, InvoicePaymentInput } from '@shared/invoice'
 import type { ArticleInput, MovementInput, SaleInput, PurchaseInput, SupplierInput, ClientInput, UserInput } from '@shared/types'
 
 // Pont sécurisé : seules ces fonctions sont exposées à l'interface (window.api).
@@ -37,7 +37,10 @@ const api = {
     remove: (id: number) => call('invoices:delete', id),
     preview: (id: number) => call('invoices:preview', id),
     exportPdf: (id: number) => call('invoices:export', id),
-    print: (id: number) => call('invoices:print', id)
+    print: (id: number) => call('invoices:print', id),
+    payments: (id: number) => call('invoices:payments', id),
+    pay: (id: number, p: InvoicePaymentInput) => call('invoices:pay', id, p),
+    unpay: (paymentId: number) => call('invoices:unpay', paymentId)
   },
   quotes: {
     list: () => call('quotes:list'),

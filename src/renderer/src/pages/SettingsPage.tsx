@@ -169,6 +169,30 @@ function DocumentsTab({ v, set }: TabProps) {
         <Textarea value={v.company_footer} onChange={(e) => set('company_footer', e.target.value)} />
       </Card>
 
+      <Card title="Mise en page" hint="Modèle utilisé pour l’aperçu, l’impression et l’export PDF des factures, devis, bons de commande et de livraison.">
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            { id: 'classique', label: 'Classique', hint: 'Cadre client à droite, grille pleine page, récapitulatif TVA et totaux en bas.' },
+            { id: 'moderne', label: 'Moderne', hint: 'Bandeaux de couleur, blocs arrondis, totaux à droite.' }
+          ] as const).map((m) => (
+            <button key={m.id} type="button" onClick={() => set('doc_layout', m.id)}
+              className={cn('rounded-lg border p-4 text-left transition', v.doc_layout === m.id ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-muted')}>
+              <div className="text-sm font-semibold">{m.label}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{m.hint}</div>
+            </button>
+          ))}
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-x-8 gap-y-5 border-t pt-5">
+          <div className="col-span-2"><Label>Titre de l’en-tête</Label>
+            <Input value={v.doc_header_title} maxLength={60} placeholder={v.company_name || 'Raison sociale'} onChange={(e) => set('doc_header_title', e.target.value)} />
+            <p className="mt-1 text-xs text-muted-foreground">Grand titre en haut à gauche (ex. « QUINCAILLERIE »). Vide : la raison sociale.</p></div>
+          <Switch checked={v.doc_show_code === '1'} onChange={(b) => set('doc_show_code', b ? '1' : '0')} label="Colonne « Code » article"
+            hint="Code-barres de l’article, retrouvé dans le catalogue (modèle classique)." />
+          <Switch checked={v.doc_show_signatures === '1'} onChange={(b) => set('doc_show_signatures', b ? '1' : '0')} label="Cadres de signature"
+            hint="Cachet du fournisseur et signature du client en bas du document." />
+        </div>
+      </Card>
+
       <Card title="Couleur des documents" hint="Couleur d’accent : en-têtes de tableau, titres et bandeau du total.">
         <div className="flex flex-wrap items-center gap-3">
           {SWATCHES.map((c) => (

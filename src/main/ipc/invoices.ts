@@ -7,12 +7,14 @@ import { getSettings } from '../settings'
 import { formatDocNumber } from '@shared/settings'
 import { fromMillimes, toMillimes } from '@shared/money'
 import {
-  computeTotals, type CompanyInfo, type DocKind, type Invoice, type InvoiceInput, type InvoiceSummary, type Quote
+  computeTotals, type CompanyInfo, type DocKind, type Invoice, type InvoiceInput, type InvoicePayment, type InvoicePaymentInput,
+  type InvoiceSummary, type Quote
 } from '@shared/invoice'
 import type { Result } from '@shared/types'
-import { footerTemplate, renderInvoiceHtml } from '../print/invoiceTemplate'
+import { footerTemplate, renderInvoiceHtml, type PrintExtras } from '../print/invoiceTemplate'
 import { htmlToPdf } from '../print/pdf'
 import { printHtml } from '../print/printer'
+import { currentUser } from './auth'
 
 function handle<T>(channel: string, fn: (...args: any[]) => T | Promise<T>): void {
   ipcMain.handle(channel, async (_e, ...args): Promise<Result<T>> => {
@@ -41,6 +43,8 @@ export function getCompany(): CompanyInfo {
     name: s.company_name || shop, taxId: s.company_mf, rc: s.company_rc, address: s.company_address, phone: s.company_phone,
     email: s.company_email, website: s.company_website, bank: s.company_bank, rib: s.company_rib, logo: s.company_logo,
     footer: s.company_footer, accentColor: s.doc_accent_color,
+    layout: s.doc_layout === 'moderne' ? 'moderne' : 'classique', headerTitle: s.doc_header_title,
+    showCode: s.doc_show_code === '1', showSignatures: s.doc_show_signatures === '1',
     conditions: { facture: s.doc_conditions_facture, devis: s.doc_conditions_devis,
                   bon_commande: s.doc_conditions_bon_commande, bon_livraison: s.doc_conditions_bon_livraison },
     rates: s.tax_rates.split(',').map(Number), defaultTva: Number(s.tax_default_rate),
@@ -66,6 +70,7 @@ export function readDoc(k: Kind, id: number): Invoice & { convertedInvoiceId?: n
     clientId: r.client_id, clientName: r.client_name, clientAddress: r.client_address,
     clientTaxId: r.client_tax_id, clientPhone: r.client_phone,
     issueDate: r.issue_date, dueDate: r.due_date, paymentMethod: r.payment_method, notes: r.notes,
+    representative: r.representative ?? '',
     timbre: r.timbre_amount > 0, timbreAmount, lines,
     totals: computeTotals(lines, r.timbre_amount > 0, timbreAmount),
     convertedInvoiceId: r.converted_invoice_id
@@ -94,15 +99,17 @@ export function saveDoc(k: Kind, id: number | null, i: InvoiceInput): number {
   const totals = computeTotals(i.lines, i.timbre, company.timbreAmount) // calcul faisant foi : celui du serveur
 
   return db.transaction(() => {
+    // Représentant : celui saisi, sinon l'utilisateur connecté (nom complet).
+    const representative = (i.representative ?? '').trim() || currentUser()?.fullName || ''
     const fields = [i.clientId, i.clientName.trim(), i.clientAddress.trim(), i.clientTaxId.trim(), i.clientPhone.trim(),
-      i.issueDate, i.dueDate || null, i.paymentMethod, i.notes.trim(), timbreMm, toMillimes(totals.totalTtc)]
+      i.issueDate, i.dueDate || null, i.paymentMethod, i.notes.trim(), timbreMm, toMillimes(totals.totalTtc), representative]
     let docId = id
     if (docId === null) {
       docId = Number(db.prepare(`INSERT INTO ${k.head}(client_id, client_name, client_address, client_tax_id, client_phone,
-        issue_date, due_date, payment_method, notes, timbre_amount, total_ttc) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(...fields).lastInsertRowid)
+        issue_date, due_date, payment_method, notes, timbre_amount, total_ttc, representative) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(...fields).lastInsertRowid)
     } else {
       db.prepare(`UPDATE ${k.head} SET client_id=?, client_name=?, client_address=?, client_tax_id=?, client_phone=?,
-        issue_date=?, due_date=?, payment_method=?, notes=?, timbre_amount=?, total_ttc=? WHERE id=?`).run(...fields, docId)
+        issue_date=?, due_date=?, payment_method=?, notes=?, timbre_amount=?, total_ttc=?, representative=? WHERE id=?`).run(...fields, docId)
       db.prepare(`DELETE FROM ${k.items} WHERE ${k.fk} = ?`).run(docId)
     }
     const add = db.prepare(`INSERT INTO ${k.items}(${k.fk}, position, designation, unit, quantity, unit_price, discount_pct, tva_rate)
@@ -146,7 +153,8 @@ export function convertQuote(id: number): number {
     const invoiceId = saveDoc(KINDS.facture, null, {
       clientId: q.clientId, clientName: q.clientName, clientAddress: q.clientAddress, clientTaxId: q.clientTaxId,
       clientPhone: q.clientPhone, issueDate: new Date().toLocaleDateString('sv-SE'), dueDate: null,
-      paymentMethod: 'Espèces', notes: `Réf. devis ${q.number}`, timbre: company.timbreAmount > 0, lines: q.lines
+      paymentMethod: 'Espèces', notes: `Réf. devis ${q.number}`, timbre: company.timbreAmount > 0, lines: q.lines,
+      representative: q.representative
     })
     db.prepare(`UPDATE quotes SET status = 'converti', converted_invoice_id = ? WHERE id = ?`).run(invoiceId, id)
     return invoiceId
@@ -154,10 +162,63 @@ export function convertQuote(id: number): number {
 }
 
 // ---------- Impression ----------
-export async function buildPdf(kind: DocKind, id: number): Promise<{ pdf: Buffer; name: string }> {
+/**
+ * Données d'affichage qui ne sont pas stockées sur le document : code de chaque article (retrouvé par sa désignation
+ * dans le catalogue), code client et référence d'origine (devis converti en facture).
+ */
+function printExtras(kind: DocKind, doc: Invoice): PrintExtras {
+  const db = getDb()
+  const byName = db.prepare(`SELECT barcode FROM articles WHERE designation = ? COLLATE NOCASE ORDER BY active DESC, id LIMIT 1`)
+  const codes = doc.lines.map((l) => ((byName.get(l.designation) as any)?.barcode as string) ?? '')
+  const clientCode = doc.clientId ? (kind === 'bon_commande' ? 'F' : 'C') + String(doc.clientId).padStart(6, '0') : ''
+  let reference = ''
+  let paid: number | undefined
+  if (kind === 'facture') {
+    const q = db.prepare(`SELECT number FROM quotes WHERE converted_invoice_id = ?`).get(doc.id) as any
+    if (q?.number) reference = `Devis ${q.number}`
+    if (doc.status !== 'brouillon') paid = fromMillimes(paidMillimes(doc.id))
+  }
+  return { codes, clientCode, reference, paid }
+}
+
+// ---------- Règlements de factures ----------
+const paidMillimes = (invoiceId: number): number =>
+  (getDb().prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM invoice_payments WHERE invoice_id = ?`).get(invoiceId) as any).s
+
+function listPayments(invoiceId: number): InvoicePayment[] {
+  return (getDb().prepare(`SELECT p.*, u.full_name FROM invoice_payments p LEFT JOIN users u ON u.id = p.user_id
+                           WHERE p.invoice_id = ? ORDER BY p.pay_date, p.id`).all(invoiceId) as any[])
+    .map((r) => ({ id: r.id, payDate: r.pay_date, amount: fromMillimes(r.amount), method: r.method, reference: r.reference, userName: r.full_name ?? '' }))
+}
+
+function addPayment(invoiceId: number, p: InvoicePaymentInput): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.payDate)) throw new Error('Date de règlement invalide.')
+  const amount = toMillimes(Number(p.amount) || 0)
+  if (amount <= 0) throw new Error('Le montant doit être supérieur à zéro.')
+  // Les contrôles « facture validée » et « pas au-delà du reste » sont aussi faits par le trigger de la base.
+  getDb().prepare(`INSERT INTO invoice_payments(invoice_id, pay_date, amount, method, reference, user_id) VALUES (?,?,?,?,?,?)`)
+    .run(invoiceId, p.payDate, amount, String(p.method || 'Espèces'), String(p.reference ?? '').trim().slice(0, 80), currentUser()?.id ?? null)
+}
+
+function deletePayment(paymentId: number): void {
+  // Annuler un encaissement : réservé au gérant et à l'administrateur.
+  if (currentUser()?.role === 'caissier') throw new Error('Seul un gérant ou un administrateur peut supprimer un règlement.')
+  const r = getDb().prepare(`DELETE FROM invoice_payments WHERE id = ?`).run(paymentId)
+  if (!r.changes) throw new Error('Règlement introuvable.')
+}
+
+/** Zone imprimable en px CSS (96 dpi) : A4 moins les marges de printToPDF (pdf.ts) ou de print() (printer.ts). */
+const PDF_PAGE = { width: 717, height: 1010 }
+const PRINT_PAGE = { width: 733, height: 1040 }
+
+function docHtml(kind: DocKind, id: number, page: { width: number; height: number }): { html: string; doc: Invoice } {
   const doc = readDoc(KINDS[kind], id)
-  const co = getCompany()
-  const pdf = await htmlToPdf(renderInvoiceHtml(doc, co, kind), footerTemplate(co, doc.number, kind))
+  return { doc, html: renderInvoiceHtml(doc, getCompany(), kind, { ...printExtras(kind, doc), page }) }
+}
+
+export async function buildPdf(kind: DocKind, id: number): Promise<{ pdf: Buffer; name: string }> {
+  const { doc, html } = docHtml(kind, id, PDF_PAGE)
+  const pdf = await htmlToPdf(html, footerTemplate(getCompany(), doc.number, kind))
   return { pdf, name: `${KINDS[kind].label}-${doc.number ?? 'brouillon-' + id}.pdf` }
 }
 
@@ -186,15 +247,20 @@ export function registerInvoiceHandlers(): void {
   const ownerOf = (e: Electron.IpcMainInvokeEvent) => BrowserWindow.fromWebContents(e.sender)
 
   handle('company:get', () => getCompany())
+  handle('invoices:payments', (id: number) => listPayments(id))
+  handle('invoices:pay', (id: number, p: InvoicePaymentInput) => addPayment(id, p))
+  handle('invoices:unpay', (paymentId: number) => deletePayment(paymentId))
 
   // Mêmes canaux pour les quatre types : invoices:*, quotes:*, orders:* et deliveries:*
   const NAMESPACES = { facture: 'invoices', devis: 'quotes', bon_commande: 'orders', bon_livraison: 'deliveries' } as const
   for (const kind of ['facture', 'devis', 'bon_commande', 'bon_livraison'] as const) {
     const k = KINDS[kind]
     const ns = NAMESPACES[kind]
+    const paidCol = kind === 'facture' ? `, (SELECT COALESCE(SUM(amount), 0) FROM invoice_payments p WHERE p.invoice_id = d.id) AS paid` : ''
     handle(`${ns}:list`, (): InvoiceSummary[] =>
-      (db().prepare(`SELECT id, number, status, issue_date, client_name, total_ttc FROM ${k.head} ORDER BY issue_date DESC, id DESC`).all() as any[])
-        .map((r) => ({ id: r.id, number: r.number, status: r.status, issueDate: r.issue_date, clientName: r.client_name, totalTtc: fromMillimes(r.total_ttc) })))
+      (db().prepare(`SELECT d.id, d.number, d.status, d.issue_date, d.client_name, d.total_ttc${paidCol} FROM ${k.head} d ORDER BY d.issue_date DESC, d.id DESC`).all() as any[])
+        .map((r) => ({ id: r.id, number: r.number, status: r.status, issueDate: r.issue_date, clientName: r.client_name, totalTtc: fromMillimes(r.total_ttc),
+                       ...(kind === 'facture' ? { paid: fromMillimes(r.paid) } : {}) })))
     handle(`${ns}:get`, (id: number) => readDoc(k, id))
     handle(`${ns}:save`, (id: number | null, i: InvoiceInput) => saveDoc(k, id, i))
     handle(`${ns}:validate`, (id: number) => validateDoc(k, id))
@@ -209,7 +275,7 @@ export function registerInvoiceHandlers(): void {
     })
     // Impression directe sur l'imprimante A4 choisie (Paramètres > Impression), copies comprises.
     ipcMain.handle(`${ns}:print`, async (_e, id: number): Promise<Result<boolean>> => {
-      try { return { ok: true, data: await printHtml(renderInvoiceHtml(readDoc(k, id), getCompany(), kind), 'a4') } }
+      try { return { ok: true, data: await printHtml(docHtml(kind, id, PRINT_PAGE).html, 'a4') } }
       catch (err: any) { return { ok: false, error: String(err?.message ?? err) } }
     })
     ipcMain.handle(`${ns}:export`, async (e, id: number): Promise<Result<string | null>> => {

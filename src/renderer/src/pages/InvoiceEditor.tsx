@@ -76,7 +76,7 @@ export default function InvoiceEditor({ kind = 'facture', target, onClose, onSav
       if (target === 'new') {
         const days = kind === 'devis' ? co.data.quoteValidityDays : isInvoice ? co.data.invoiceDueDays : 0
         f = { clientId: null, clientName: '', clientAddress: '', clientTaxId: '', clientPhone: '', issueDate: today(), dueDate: days > 0 ? inDays(days) : null,
-          paymentMethod: 'Espèces', notes: '', timbre: isInvoice && co.data.timbreDefault && co.data.timbreAmount > 0, lines: [] }
+          paymentMethod: 'Espèces', notes: '', timbre: isInvoice && co.data.timbreDefault && co.data.timbreAmount > 0, lines: [], representative: '' }
       } else {
         const r = await api.get(target)
         if (r.ok) f = r.data; else setError(r.error)
@@ -243,7 +243,9 @@ export default function InvoiceEditor({ kind = 'facture', target, onClose, onSav
                   <div className="col-span-2"><Label>Date *</Label><input type="date" className={field} value={form.issueDate} onChange={(e) => set('issueDate', e.target.value)} /></div>
                   <div className="col-span-2"><Label>{kind === 'devis' ? 'Valable jusqu’au' : isOrder ? 'Livraison souhaitée' : isDelivery ? 'Livraison prévue' : 'Échéance'}</Label>
                     <input type="date" className={field} value={form.dueDate ?? ''} onChange={(e) => set('dueDate', e.target.value || null)} /></div>
-                  <div className={cn(isInvoice ? 'col-span-8' : 'col-span-12')}><Label>Adresse</Label><input className={field} value={form.clientAddress} onChange={(e) => set('clientAddress', e.target.value)} /></div>
+                  <div className={cn(isInvoice ? 'col-span-5' : 'col-span-9')}><Label>Adresse</Label><input className={field} value={form.clientAddress} onChange={(e) => set('clientAddress', e.target.value)} /></div>
+                  <div className="col-span-3"><Label>Représentant</Label>
+                    <input className={field} value={form.representative ?? ''} maxLength={60} placeholder="Utilisateur connecté" onChange={(e) => set('representative', e.target.value)} /></div>
                   {isInvoice && (
                     <div className="col-span-4"><Label>Mode de règlement</Label>
                       <select className={field} value={form.paymentMethod} onChange={(e) => set('paymentMethod', e.target.value)}>{PAYMENTS.map((p) => <option key={p}>{p}</option>)}</select></div>

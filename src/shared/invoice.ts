@@ -28,7 +28,19 @@ export interface InvoiceInput {
   notes: string
   timbre: boolean // droit de timbre fiscal appliqué ?
   lines: InvoiceLine[]
+  representative?: string // vendeur imprimé sur le document ('' = utilisateur connecté à l'enregistrement)
 }
+
+/** Règlement d'une facture validée. */
+export interface InvoicePayment {
+  id: number
+  payDate: string // AAAA-MM-JJ
+  amount: number // dinars
+  method: string
+  reference: string
+  userName: string
+}
+export interface InvoicePaymentInput { payDate: string; amount: number; method: string; reference: string }
 
 export interface InvoiceTotals {
   lineTotals: number[] // total HT de chaque ligne (après remise)
@@ -110,6 +122,7 @@ export interface InvoiceSummary {
   issueDate: string
   clientName: string
   totalTtc: number
+  paid?: number // total des règlements (factures uniquement)
 }
 
 export interface CompanyInfo {
@@ -125,6 +138,10 @@ export interface CompanyInfo {
   logo: string // image en data URL ('' = aucun)
   footer: string // pied de page des documents
   accentColor: string // couleur des documents (#RRGGBB)
+  layout: 'classique' | 'moderne' // modèle d'impression A4
+  headerTitle: string // grand titre de l'en-tête ('' = raison sociale)
+  showCode: boolean // colonne « Code » article
+  showSignatures: boolean // cadres de signature
   conditions: Record<DocKind, string> // conditions imprimées, par type de document
   rates: number[] // taux de TVA proposés
   defaultTva: number

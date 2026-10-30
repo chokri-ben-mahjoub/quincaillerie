@@ -45,6 +45,10 @@ export const SETTING_DEFS: SettingDef[] = [
   def('doc_number_digits', '4', 'int', { min: 3, max: 8 }),
   def('doc_reset_yearly', '1', 'bool'), // 1 = le compteur repart à 1 chaque année
   def('doc_accent_color', '#14213d', 'color'),
+  def('doc_layout', 'classique', 'choice', { options: ['classique', 'moderne'] }), // modèle d'impression A4
+  def('doc_header_title', '', 'text', { maxLength: 60 }), // grand titre de l'en-tête ('' = raison sociale)
+  def('doc_show_code', '1', 'bool'), // colonne « Code » (code-barres de l'article)
+  def('doc_show_signatures', '1', 'bool'), // cadres de signature en bas du document
   def('doc_quote_validity_days', '30', 'int', { min: 0, max: 365 }), // 0 = pas de date de validité par défaut
   def('doc_invoice_due_days', '0', 'int', { min: 0, max: 365 }), // 0 = pas d'échéance par défaut
   def('company_footer', '', 'multiline', { maxLength: 300 }), // pied de page de tous les documents

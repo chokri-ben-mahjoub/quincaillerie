@@ -4,10 +4,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import DataGrid, { type GridColumn, type GridPreset } from '@/components/DataGrid'
 import ShareDialog from '@/components/ShareDialog'
+import { cn } from '@/lib/utils'
 import type { DocKind } from '@shared/invoice'
 import InvoiceEditor from './InvoiceEditor'
 
-export interface DocRow { id: number; number: string | null; status: string; issueDate: string; clientName: string; totalTtc: number }
+export interface DocRow { id: number; number: string | null; status: string; issueDate: string; clientName: string; totalTtc: number; paid?: number }
 type Tone = 'neutral' | 'success' | 'warning' | 'danger'
 type Result<T> = { ok: boolean; error?: string; data?: T }
 
@@ -33,10 +34,12 @@ interface Props {
   presets: GridPreset[]
   /** Actions propres au type de document (convertir, accepter, marquer reçu…). */
   extraActions?: (row: DocRow, run: (p: Promise<Result<unknown>>, success?: string) => void) => React.ReactNode
+  /** Change de valeur pour forcer le rechargement de la liste (ex. après un règlement saisi dans un dialogue). */
+  reloadSignal?: number
 }
 
 /** Liste de documents façon DevExpress : filtres par colonne (statut en liste déroulante, période, montant), tri, export, totaux. */
-export default function DocumentListPage({ kind, title, subtitle, newLabel, api, partyLabel, totalLabel, statusLabels, statusTones, presets, extraActions }: Props) {
+export default function DocumentListPage({ kind, title, subtitle, newLabel, api, partyLabel, totalLabel, statusLabels, statusTones, presets, extraActions, reloadSignal }: Props) {
   const [rows, setRows] = useState<DocRow[]>([])
   const [editor, setEditor] = useState<number | 'new' | null>(null)
   const [shareId, setShareId] = useState<number | null>(null)
@@ -46,7 +49,7 @@ export default function DocumentListPage({ kind, title, subtitle, newLabel, api,
     const r = await api.list()
     if (r.ok) setRows(r.data)
   }, [api])
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, reloadSignal])
 
   const run = useCallback(async (p: Promise<Result<unknown>>, success = '') => {
     const r = await p
@@ -59,6 +62,16 @@ export default function DocumentListPage({ kind, title, subtitle, newLabel, api,
     { id: 'issueDate', header: 'Date', type: 'date', value: (r) => r.issueDate, width: '12rem' },
     { id: 'clientName', header: partyLabel, value: (r) => r.clientName, cell: (r) => <span className="font-medium">{r.clientName}</span> },
     { id: 'totalTtc', header: totalLabel, type: 'money', value: (r) => r.totalTtc, align: 'right', summary: 'sum', cell: (r) => <span className="tnum font-semibold">{new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 3 }).format(r.totalTtc)} DT</span> },
+    ...(kind === 'facture' ? [{
+      id: 'rest', header: 'Reste à payer', type: 'money', align: 'right', summary: 'sum',
+      value: (r: DocRow) => (r.status === 'brouillon' ? 0 : Math.max(0, Math.round(r.totalTtc * 1000) - Math.round((r.paid ?? 0) * 1000)) / 1000),
+      cell: (r: DocRow) => {
+        if (r.status === 'brouillon') return <span className="text-muted-foreground">—</span>
+        const rest = Math.max(0, Math.round(r.totalTtc * 1000) - Math.round((r.paid ?? 0) * 1000)) / 1000
+        return rest === 0 ? <Badge tone="success">Soldée</Badge>
+          : <span className={cn('tnum font-semibold', (r.paid ?? 0) > 0 ? 'text-warning' : 'text-destructive')}>{new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 3 }).format(rest)} DT</span>
+      }
+    } as GridColumn<DocRow>] : []),
     { id: 'status', header: 'Statut', type: 'enum', value: (r) => r.status, options: Object.entries(statusLabels).map(([value, label]) => ({ value, label })), width: '10rem',
       cell: (r) => <Badge tone={statusTones[r.status] ?? 'neutral'}>{r.status !== 'brouillon' && kind === 'facture' && <Lock className="mr-1 h-3 w-3" />}{statusLabels[r.status] ?? r.status}</Badge> },
     { id: 'actions', header: '', value: () => '', filterable: false, sortable: false, align: 'right', width: '17rem',

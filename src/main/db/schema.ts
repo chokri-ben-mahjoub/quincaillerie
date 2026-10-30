@@ -404,5 +404,37 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE sales ADD COLUMN cancel_reason TEXT;
   ALTER TABLE sales ADD COLUMN replaced_by INTEGER REFERENCES sales(id); -- vente qui remplace celle-ci après modification
   CREATE INDEX idx_sales_client ON sales(client_id);
+  `,
+
+  /* ---------- Version 9 : représentant sur les documents, règlements de factures ---------- */
+  `
+  -- Représentant (vendeur) imprimé sur le document ; par défaut l'utilisateur qui l'a enregistré.
+  ALTER TABLE invoices        ADD COLUMN representative TEXT NOT NULL DEFAULT '';
+  ALTER TABLE quotes          ADD COLUMN representative TEXT NOT NULL DEFAULT '';
+  ALTER TABLE purchase_orders ADD COLUMN representative TEXT NOT NULL DEFAULT '';
+  ALTER TABLE delivery_notes  ADD COLUMN representative TEXT NOT NULL DEFAULT '';
+
+  -- Règlements d'une facture validée (plusieurs possibles : acompte, solde, chèques échelonnés…).
+  CREATE TABLE invoice_payments (
+    id         INTEGER PRIMARY KEY,
+    invoice_id INTEGER NOT NULL REFERENCES invoices(id),
+    pay_date   TEXT NOT NULL,                          -- AAAA-MM-JJ
+    amount     INTEGER NOT NULL CHECK (amount > 0),    -- millimes
+    method     TEXT NOT NULL DEFAULT 'Espèces',
+    reference  TEXT NOT NULL DEFAULT '',               -- n° de chèque, de virement…
+    user_id    INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+  CREATE INDEX idx_invoice_payments_invoice ON invoice_payments(invoice_id);
+
+  -- Garde-fous dans la base elle-même : seulement sur facture validée, jamais au-delà du net à payer.
+  CREATE TRIGGER trg_invoice_payment_check BEFORE INSERT ON invoice_payments
+  BEGIN
+    SELECT RAISE(ABORT, 'Seule une facture validée peut recevoir un règlement.')
+      WHERE (SELECT status FROM invoices WHERE id = NEW.invoice_id) IS NOT 'validee';
+    SELECT RAISE(ABORT, 'Le règlement dépasse le reste à payer.')
+      WHERE (SELECT COALESCE(SUM(amount), 0) FROM invoice_payments WHERE invoice_id = NEW.invoice_id) + NEW.amount
+            > (SELECT total_ttc FROM invoices WHERE id = NEW.invoice_id);
+  END;
   `
 ]
