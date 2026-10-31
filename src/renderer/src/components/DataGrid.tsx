@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLef
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn, fmtDate, formatMoney, formatQty, norm } from '@/lib/utils'
+import { takeSearchIntent } from '@/lib/searchIntent'
 
 // Grille de données façon DevExpress : ligne de filtres sous les en-têtes (texte, liste déroulante, plage de nombres ou de dates),
 // tri multi-colonnes (Maj+clic), recherche globale, choix des colonnes, totaux, pagination, export Excel (CSV).
@@ -173,7 +174,7 @@ export default function DataGrid<T>({ id, data, columns, pageSize = 15, searchPl
   const defaults = useMemo(() => ({ hidden: columns.filter((c) => c.hidden).map((c) => c.id), pageSize, sorting: [] as SortingState }), []) // eslint-disable-line react-hooks/exhaustive-deps
   const [prefs, setPrefs] = usePersisted(`grid:${id}`, defaults)
   const [filters, setFilters] = useState<ColumnFiltersState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [globalFilter, setGlobalFilter] = useState(() => takeSearchIntent(id) ?? '') // recherche venue de Ctrl+K, s'il y en a une
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: prefs.pageSize })
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)

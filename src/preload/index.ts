@@ -133,6 +133,10 @@ const api = {
   audit: {
     list: (from: string, to: string) => call('audit:list', from, to)
   },
+  dashboard: {
+    today: () => call('dashboard:today'),
+    badges: () => call('dashboard:badges')
+  },
   clients: {
     list: () => call('clients:list'),
     create: (c: ClientInput) => call('clients:create', c),

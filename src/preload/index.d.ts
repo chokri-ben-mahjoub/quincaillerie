@@ -1,4 +1,5 @@
 import type { ShareDraft, ShareRequest } from '@shared/share'
+import type { DashboardData, NavBadges } from '@shared/dashboard'
 import type { ArticleEvent, AuditEntry, Lot, LotDetail, PendingReception, ReceiveInput, TrackedArticle, TrackingMode } from '@shared/trace'
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
@@ -134,6 +135,10 @@ declare global {
       }
       audit: {
         list: (from: string, to: string) => Promise<Result<AuditEntry[]>>
+      }
+      dashboard: {
+        today: () => Promise<Result<DashboardData>>
+        badges: () => Promise<Result<NavBadges>>
       }
       clients: {
         list: () => Promise<Result<Client[]>>
