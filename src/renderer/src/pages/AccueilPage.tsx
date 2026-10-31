@@ -41,6 +41,11 @@ function todos(d: DashboardData): Todo[] {
   if (d.invoices?.overdueCount) t.push({ key: 'late', tone: 'danger', page: 'factures',
     text: `${plural(d.invoices.overdueCount, 'facture en retard', 'factures en retard')} de paiement`, detail: `${formatMoney(d.invoices.overdueTotal)} à relancer` })
   if (d.lots?.expired) t.push({ key: 'expired', tone: 'danger', page: 'tracabilite', text: `${plural(d.lots.expired, 'lot périmé', 'lots périmés')} encore en stock` })
+  // Factures de charges : chacune en retard est signalée, puis celles qui arrivent à échéance.
+  for (const e of d.expenses?.items ?? []) t.push({ key: `exp-${e.id}`, tone: e.overdue ? 'danger' : 'warning', page: 'depenses',
+    text: `${e.label} ${e.overdue ? 'en retard' : 'à payer'}`, detail: `${formatMoney(e.amount)}, ${e.overdue ? 'depuis le' : 'avant le'} ${e.dueDate.split('-').reverse().join('/')}` })
+  if (d.expenses && d.expenses.dueCount > d.expenses.items.length) t.push({ key: 'exp-more', tone: 'neutral', page: 'depenses',
+    text: `${d.expenses.dueCount - d.expenses.items.length} autre(s) facture(s) de charges à payer`, detail: `${formatMoney(d.expenses.dueTotal)} au total` })
   if (d.stock?.low) t.push({ key: 'low', tone: 'warning', page: 'stock', text: `${plural(d.stock.low, 'article', 'articles')} sous le seuil de réapprovisionnement` })
   if (d.lots?.soon) t.push({ key: 'soon', tone: 'warning', page: 'tracabilite', text: `${plural(d.lots.soon, 'lot périme', 'lots périment')} dans les 60 jours` })
   if (d.lots?.pending) t.push({ key: 'pending', tone: 'warning', page: 'tracabilite', text: `${plural(d.lots.pending, 'réception', 'réceptions')} à identifier (lots ou n° de série)` })
@@ -81,7 +86,7 @@ export default function AccueilPage({ user, onNavigate }: { user: User; onNaviga
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
   const printerList = printerTodos(printers)
   const list = data ? [...printerList.filter((x) => x.tone === 'danger'), ...todos(data), ...printerList.filter((x) => x.tone !== 'danger')] : []
-  const hasTodoSources = !!data && (data.stock || data.invoices || data.clients || data.lots || printerList.length > 0)
+  const hasTodoSources = !!data && (data.stock || data.invoices || data.clients || data.lots || data.expenses || printerList.length > 0)
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 p-8">
@@ -190,6 +195,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 
 function RecentBlock({ s, onNavigate }: { s: NonNullable<DashboardData['sales']>; onNavigate: (p: PageId) => void }) {
   const max = Math.max(1, ...s.byMethod.map((m) => m.total))
+  const cashIn = s.byMethod.find((m) => m.method === 'especes')?.total ?? 0
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(22rem,1fr)]">
       <section className="rounded-lg border bg-card p-6">
@@ -229,6 +235,13 @@ function RecentBlock({ s, onNavigate }: { s: NonNullable<DashboardData['sales']>
               </li>
             ))}
           </ul>
+        )}
+        {s.cashOut > 0 && (
+          // Espèces : encaissées moins les dépenses payées avec l'argent de la caisse = ce que le tiroir doit contenir en plus du fond.
+          <dl className="mt-5 space-y-1.5 border-t pt-4 text-sm">
+            <div className="flex justify-between"><dt className="text-muted-foreground">Dépenses payées avec la caisse</dt><dd className="tnum font-semibold text-destructive">−{formatMoney(s.cashOut)}</dd></div>
+            <div className="flex justify-between"><dt className="font-medium">Espèces attendues dans le tiroir</dt><dd className="tnum font-semibold">{formatMoney(cashIn - s.cashOut)}</dd></div>
+          </dl>
         )}
       </section>
     </div>

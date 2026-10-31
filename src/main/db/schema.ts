@@ -541,5 +541,59 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE users ADD COLUMN avatar TEXT; -- photo de profil (data URL, réduite à 256 px par l'interface)
   ALTER TABLE users ADD COLUMN prefs TEXT;  -- préférences d'affichage propres à l'utilisateur (JSON)
+  `,
+
+  /* ---------- Version 12 : dépenses du magasin (STEG, SONEDE, loyer, salaires…) ---------- */
+  `
+  -- Catégories de charges, modifiables dans Paramètres > Dépenses.
+  CREATE TABLE expense_categories (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    recurrence TEXT NOT NULL DEFAULT 'aucune'
+               CHECK (recurrence IN ('aucune','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle')),
+    due_days   INTEGER NOT NULL DEFAULT 0 CHECK (due_days BETWEEN 0 AND 120), -- délai de paiement après la date de facture
+    color      TEXT NOT NULL DEFAULT '#94a3b8',
+    active     INTEGER NOT NULL DEFAULT 1,
+    sort       INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT INTO expense_categories(name, recurrence, color, sort) VALUES
+    ('STEG (électricité, gaz)', 'bimestrielle', '#f59e0b', 1),
+    ('SONEDE (eau)', 'trimestrielle', '#0ea5e9', 2),
+    ('Loyer', 'mensuelle', '#8b5cf6', 3),
+    ('Salaires', 'mensuelle', '#10b981', 4),
+    ('CNSS', 'trimestrielle', '#14b8a6', 5),
+    ('Téléphone / Internet', 'mensuelle', '#6366f1', 6),
+    ('Transport / Carburant', 'aucune', '#ef4444', 7),
+    ('Impôts et taxes', 'aucune', '#64748b', 8),
+    ('Entretien / Réparations', 'aucune', '#a16207', 9),
+    ('Fournitures', 'aucune', '#ec4899', 10),
+    ('Divers', 'aucune', '#94a3b8', 11);
+
+  CREATE TABLE expenses (
+    id              INTEGER PRIMARY KEY,
+    category_id     INTEGER NOT NULL REFERENCES expense_categories(id),
+    label           TEXT NOT NULL,
+    payee           TEXT,                       -- bénéficiaire (STEG, propriétaire, employé…)
+    reference       TEXT,                       -- n° de facture
+    amount          INTEGER NOT NULL CHECK (amount > 0), -- millimes
+    expense_date    TEXT NOT NULL,              -- date de la facture
+    due_date        TEXT,                       -- à payer avant
+    status          TEXT NOT NULL DEFAULT 'a_payer' CHECK (status IN ('a_payer','payee')),
+    paid_date       TEXT,
+    method          TEXT,
+    from_cash       INTEGER NOT NULL DEFAULT 0, -- payée avec l'argent de la caisse
+    note            TEXT,
+    attachment      TEXT,                       -- photo ou PDF de la facture (data URL)
+    attachment_name TEXT,
+    generated       INTEGER NOT NULL DEFAULT 0, -- échéance créée automatiquement (charge récurrente)
+    user_id         INTEGER REFERENCES users(id),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    CHECK (status = 'a_payer' OR paid_date IS NOT NULL)
+  );
+  CREATE INDEX idx_expenses_status   ON expenses(status, due_date);
+  CREATE INDEX idx_expenses_date     ON expenses(expense_date);
+  CREATE INDEX idx_expenses_paid     ON expenses(paid_date);
+  CREATE INDEX idx_expenses_category ON expenses(category_id);
   `
 ]

@@ -23,7 +23,9 @@ export function registerSettingsHandlers(): void {
         units: s.list_units.split(','),
         pages: currentUser()?.role === 'admin' ? [...PERMISSION_IDS, ...ADMIN_PAGES] : currentUser() ? grantedPermissions(currentUser()!.role) : [],
         allowSaleEdit: currentUser()?.role !== 'caissier' || s.sales_allow_edit === '1',
-        autoPrintTicket: s.print_ticket_auto === '1', whatsappEnabled: s.share_whatsapp_enabled === '1', emailEnabled: s.share_email_enabled === '1'
+        autoPrintTicket: s.print_ticket_auto === '1', whatsappEnabled: s.share_whatsapp_enabled === '1', emailEnabled: s.share_email_enabled === '1',
+        expenseMethods: s.expenses_methods.split(',').filter(Boolean), expenseDefaultMethod: s.expenses_default_method,
+        expenseCashEnabled: s.expenses_cash_enabled === '1', expenseRequireAttachment: s.expenses_require_attachment === '1'
       } }
     } catch (e: any) { return { ok: false, error: String(e?.message ?? e) } }
   })

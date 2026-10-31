@@ -92,6 +92,15 @@ export const SETTING_DEFS: SettingDef[] = [
   def('perm_gerant', PERMISSION_IDS.join(','), 'list', { options: PERMISSION_IDS }),
   def('perm_caissier', 'caisse', 'list', { options: PERMISSION_IDS }),
 
+  // ----- Dépenses -----
+  def('expenses_methods', 'especes,cheque,virement,carte,prelevement', 'list', { options: ['especes', 'cheque', 'virement', 'carte', 'prelevement'] }),
+  def('expenses_default_method', 'especes', 'choice', { options: ['especes', 'cheque', 'virement', 'carte', 'prelevement'] }),
+  def('expenses_remind_days', '7', 'int', { min: 0, max: 60 }), // rappel sur l'accueil X jours avant l'échéance
+  def('expenses_auto_next', '1', 'bool'), // charge récurrente payée : prépare l'échéance suivante
+  def('expenses_cash_enabled', '1', 'bool'), // « payée avec l'argent de la caisse » (déduite des espèces attendues)
+  def('expenses_require_attachment', '0', 'bool'), // photo / PDF de la facture obligatoire
+  def('expenses_report_basis', 'facture', 'choice', { options: ['facture', 'paiement'] }), // date retenue dans les rapports
+
   // ----- Impression ('' = imprimante par défaut de Windows) -----
   def('print_a4_printer', '', 'text', { maxLength: 200 }),
   def('print_a4_copies', '1', 'int', { min: 1, max: 10 }),
@@ -201,13 +210,18 @@ export interface AppConfig {
   autoPrintTicket: boolean
   whatsappEnabled: boolean
   emailEnabled: boolean
+  expenseMethods: string[] // modes de paiement proposés pour les dépenses
+  expenseDefaultMethod: string
+  expenseCashEnabled: boolean // option « payée avec l'argent de la caisse »
+  expenseRequireAttachment: boolean
 }
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
   maxDiscountPct: 100, paymentMethods: ['especes', 'carte', 'cheque', 'credit'], defaultMethod: 'especes', allowBelowStock: false,
   creditDefaultLimit: 0, stockDefaultMin: 0, stockDefaultUnit: 'pièce', alertsEnabled: true, alertMarginPct: 0,
   units: [...UNITS], pages: [],
-  allowSaleEdit: true, autoPrintTicket: false, whatsappEnabled: true, emailEnabled: true
+  allowSaleEdit: true, autoPrintTicket: false, whatsappEnabled: true, emailEnabled: true,
+  expenseMethods: ['especes', 'cheque', 'virement', 'carte', 'prelevement'], expenseDefaultMethod: 'especes', expenseCashEnabled: true, expenseRequireAttachment: false
 }
 
 /** Niveau de stock d'un article : rupture, bas (alerte) ou normal. L'alerte se déclenche à seuil + marge %. */

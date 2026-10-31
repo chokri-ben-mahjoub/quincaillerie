@@ -208,7 +208,9 @@ export interface ReportData {
   byCategory: { name: string; total: number }[]
   topArticles: { designation: string; quantity: number; total: number; margin: number }[]
   /** Même durée juste avant la période, pour comparer. */
-  previous: { from: string; to: string; revenue: number; grossMargin: number; salesCount: number; avgBasket: number }
+  previous: { from: string; to: string; revenue: number; grossMargin: number; salesCount: number; avgBasket: number; expenses: number }
+  /** Dépenses de la période (date de facture ou de paiement, selon Paramètres > Dépenses). */
+  expenses: { total: number; basis: 'facture' | 'paiement'; byCategory: { name: string; color: string; total: number }[] }
 }
 
 export type TopArticlesBy = 'total' | 'quantity' | 'margin'

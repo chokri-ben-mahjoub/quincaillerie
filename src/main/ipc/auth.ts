@@ -38,14 +38,14 @@ export function isAllowed(channel: string): boolean {
   if (channel === 'app:config') return true // configuration de l'interface : tout utilisateur connecté
   if (channel.startsWith('dashboard:')) return true // accueil : chaque section vérifie elle-même les droits
   if (channel.startsWith('profile:')) return true // son propre profil : toujours
-  if (/^(users|backup|settings|demo|audit):/.test(channel)) return false // réservés à l'administrateur
+  if (/^(users|backup|settings|demo|audit|expcat):/.test(channel)) return false // réservés à l'administrateur
   return channelGranted(grantedPermissions(current.role), channel)
 }
 
 // ---- Journal d'audit : chaque action qui modifie quelque chose (et chaque refus d'accès) est enregistrée ----
 // Les simples lectures (listes, fiches, aperçus) ne sont pas journalisées.
 const READ_ACTIONS = new Set(['list', 'get', 'getAll', 'status', 'stats', 'statement', 'movements', 'payments', 'preview', 'config',
-  'printers', 'compose', 'pickDir', 'articles', 'lots', 'lot', 'pending', 'history', 'today', 'badges', 'getPrefs', 'detect'])
+  'printers', 'compose', 'pickDir', 'articles', 'lots', 'lot', 'pending', 'history', 'today', 'badges', 'getPrefs', 'detect', 'categories', 'openAttachment'])
 const isRead = (channel: string): boolean => READ_ACTIONS.has(channel.split(':')[1] ?? '')
 
 /** Copie des arguments sans aucun mot de passe, tronquée pour rester lisible. */

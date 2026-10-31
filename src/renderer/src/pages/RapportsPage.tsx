@@ -23,9 +23,9 @@ const PERIODS: { id: PeriodId; label: string; range: () => [string, string] }[] 
 ]
 
 // ---------- Disposition personnalisable (enregistrée pour chaque utilisateur) ----------
-type BlockId = 'kpis' | 'evolution' | 'top' | 'categories' | 'methods' | 'situation'
+type BlockId = 'kpis' | 'net' | 'evolution' | 'top' | 'categories' | 'methods' | 'expenses' | 'situation'
 const BLOCK_LABELS: Record<BlockId, string> = {
-  kpis: 'Indicateurs clés', evolution: 'Évolution du chiffre d’affaires', top: 'Meilleurs articles',
+  kpis: 'Indicateurs clés', net: 'Bénéfice net', expenses: 'Dépenses par catégorie', evolution: 'Évolution du chiffre d’affaires', top: 'Meilleurs articles',
   categories: 'Ventes par catégorie', methods: 'Modes de paiement', situation: 'Stock et créances'
 }
 interface Layout {
@@ -39,9 +39,9 @@ interface Layout {
 }
 const DEFAULT_LAYOUT: Layout = {
   blocks: [
-    { id: 'kpis', visible: true, wide: true }, { id: 'evolution', visible: true, wide: true },
+    { id: 'kpis', visible: true, wide: true }, { id: 'net', visible: true, wide: true }, { id: 'evolution', visible: true, wide: true },
     { id: 'top', visible: true, wide: false }, { id: 'categories', visible: true, wide: false },
-    { id: 'methods', visible: true, wide: false }, { id: 'situation', visible: true, wide: false }
+    { id: 'methods', visible: true, wide: false }, { id: 'expenses', visible: true, wide: false }, { id: 'situation', visible: true, wide: false }
   ],
   compare: true, period: '30d',
   evolution: { chart: 'area', group: 'day', margin: true },
@@ -53,9 +53,16 @@ const DEFAULT_LAYOUT: Layout = {
 function mergeLayout(saved: Partial<Layout> | null): Layout {
   if (!saved) return DEFAULT_LAYOUT
   const known = (saved.blocks ?? []).filter((b) => b.id in BLOCK_LABELS)
-  const missing = DEFAULT_LAYOUT.blocks.filter((d) => !known.some((b) => b.id === d.id))
+  // Bloc ajouté depuis (ex. « Bénéfice net ») : placé juste après son voisin de la disposition d'origine.
+  const blocksOut = [...known]
+  DEFAULT_LAYOUT.blocks.forEach((d, i) => {
+    if (blocksOut.some((b) => b.id === d.id)) return
+    const prev = DEFAULT_LAYOUT.blocks[i - 1]
+    const at = prev ? blocksOut.findIndex((b) => b.id === prev.id) + 1 : 0
+    blocksOut.splice(at, 0, d)
+  })
   return {
-    ...DEFAULT_LAYOUT, ...saved, blocks: [...known, ...missing],
+    ...DEFAULT_LAYOUT, ...saved, blocks: blocksOut,
     evolution: { ...DEFAULT_LAYOUT.evolution, ...saved.evolution }, top: { ...DEFAULT_LAYOUT.top, ...saved.top },
     categories: { ...DEFAULT_LAYOUT.categories, ...saved.categories }, methods: { ...DEFAULT_LAYOUT.methods, ...saved.methods }
   }
@@ -170,6 +177,46 @@ export default function RapportsPage() {
         </section>
         {cmp && <p className="text-xs text-muted-foreground">Période précédente de même durée : du {prevLabel}, chiffre d’affaires {formatMoney(data.previous.revenue)}.</p>}
       </div>
+    ),
+    net: () => data && (() => {
+      const net = data.grossMargin - data.expenses.total
+      const prevNet = data.previous.grossMargin - data.previous.expenses
+      return (
+        <section className="rounded-lg border bg-card p-5 shadow-soft">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="font-semibold">Bénéfice net</h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">Marge brute moins les dépenses ({data.expenses.basis === 'facture' ? 'par date de facture' : 'par date de paiement'}).</p>
+            </div>
+            <Delta show={cmp} now={net} before={prevNet} />
+          </div>
+          <div className="tnum mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-lg">
+            <span>{formatMoney(data.grossMargin)}</span><span className="text-muted-foreground">marge</span>
+            <span className="text-muted-foreground">−</span>
+            <span>{formatMoney(data.expenses.total)}</span><span className="text-muted-foreground">dépenses</span>
+            <span className="text-muted-foreground">=</span>
+            <span className={cn('text-3xl font-semibold tracking-tight', net < 0 ? 'text-destructive' : 'text-success')}>{formatMoney(net)}</span>
+          </div>
+          {data.revenue > 0 && <p className="mt-2 text-sm text-muted-foreground">Soit {((net / data.revenue) * 100).toFixed(1)} % du chiffre d’affaires.</p>}
+        </section>
+      )
+    })(),
+    expenses: () => data && (
+      <Card title={`Dépenses par catégorie (${formatMoney(data.expenses.total)})`}>
+        {data.expenses.byCategory.length === 0
+          ? <div className="flex h-64 items-center justify-center text-muted-foreground">Aucune dépense sur cette période.</div>
+          : (
+            <ul className="space-y-3">
+              {data.expenses.byCategory.map((c) => (
+                <li key={c.name}>
+                  <div className="flex justify-between text-sm"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />{c.name}</span>
+                    <span className="tnum font-semibold">{formatMoney(c.total)}</span></div>
+                  <div className="mt-1 h-2 rounded-full bg-muted"><div className="h-2 rounded-full" style={{ width: `${(c.total / data.expenses.byCategory[0].total) * 100}%`, background: c.color }} /></div>
+                </li>
+              ))}
+            </ul>
+          )}
+      </Card>
     ),
     evolution: () => data && (
       <Card title={`Évolution du chiffre d’affaires, par ${({ day: 'jour', week: 'semaine', month: 'mois' })[layout.evolution.group]}`}>

@@ -21,6 +21,7 @@ export interface DashboardData {
     byHour: { hour: number; today: number; yesterday: number }[]
     byMethod: { method: PayMethod; total: number }[]
     creditToday: number // reste dû des ventes à crédit du jour
+    cashOut: number // dépenses payées aujourd'hui avec l'argent de la caisse
     cancelledCount: number
     last: DashboardSale[]
   } | null
@@ -31,6 +32,10 @@ export interface DashboardData {
   } | null
   clients: { debtorCount: number; debtTotal: number } | null
   lots: { expired: number; soon: number; pending: number } | null
+  expenses: {
+    dueCount: number; dueTotal: number; overdueCount: number
+    items: { id: number; label: string; categoryName: string; amount: number; dueDate: string; overdue: boolean }[]
+  } | null
 }
 
 /** Pastilles de la barre latérale, par page. */

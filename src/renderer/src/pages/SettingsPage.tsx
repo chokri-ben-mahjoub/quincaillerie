@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Database, DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Receipt, RefreshCw, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Wand2, Warehouse, X } from 'lucide-react'
+import { CheckCircle2, Database, DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Receipt, RefreshCw, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Wallet, Wand2, Warehouse, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import BackupPanel from '@/components/BackupPanel'
 import type { DemoReport, DemoStats } from '@shared/demo'
 import { KIND_LABELS, LINK_LABELS, STATE_LABELS, type PrinterDetection } from '@shared/printers'
 import { takeSettingsTab } from '@/lib/searchIntent'
+import { EXPENSE_METHOD_LABELS, RECURRENCE_LABELS, type ExpenseCategory, type ExpenseMethod, type Recurrence } from '@shared/expenses'
 
 // ---------- Organisation en onglets ----------
 const TABS = [
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'ventes', label: 'Ventes', icon: ShoppingCart, ready: true },
   { id: 'stock', label: 'Stock', icon: Warehouse, ready: true },
   { id: 'impression', label: 'Impression', icon: Printer, ready: true },
+  { id: 'depenses', label: 'Dépenses', icon: Wallet, ready: true },
   { id: 'partage', label: 'Partage', icon: Share2, ready: true },
   { id: 'utilisateurs', label: 'Utilisateurs / droits', icon: ShieldCheck, ready: true },
   { id: 'sauvegarde', label: 'Sauvegarde', icon: DatabaseBackup, ready: true },
@@ -520,6 +522,130 @@ function ImpressionTab({ v, set }: TabProps) {
   )
 }
 
+// ---------- Onglet Dépenses ----------
+function DepensesTab({ v, set }: TabProps) {
+  const methods = v.expenses_methods.split(',').filter(Boolean)
+  const toggleMethod = (m: string, on: boolean) => {
+    const next = on ? [...methods, m] : methods.filter((x) => x !== m)
+    if (!next.length) return // au moins un mode
+    set('expenses_methods', next.join(','))
+    if (!on && v.expenses_default_method === m) set('expenses_default_method', next[0])
+  }
+  return (
+    <div className="space-y-6">
+      <Card title="Paiement des dépenses" hint="Modes proposés lors de la saisie et du paiement d’une dépense.">
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {(Object.keys(EXPENSE_METHOD_LABELS) as ExpenseMethod[]).map((m) => (
+              <label key={m} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-[hsl(var(--primary))]" checked={methods.includes(m)} onChange={(e) => toggleMethod(m, e.target.checked)} />{EXPENSE_METHOD_LABELS[m]}
+              </label>
+            ))}
+          </div>
+          <div className="max-w-xs"><Label>Mode proposé par défaut</Label>
+            <Select value={v.expenses_default_method} onChange={(e) => set('expenses_default_method', e.target.value)}>
+              {methods.map((m) => <option key={m} value={m}>{EXPENSE_METHOD_LABELS[m as ExpenseMethod]}</option>)}
+            </Select></div>
+          <Switch checked={v.expenses_cash_enabled === '1'} onChange={(b) => set('expenses_cash_enabled', b ? '1' : '0')}
+            label="Payer avec l’argent de la caisse" hint="Option proposée pour les paiements en espèces : le montant est retiré des espèces attendues dans le tiroir, sur l’accueil." />
+          <Switch checked={v.expenses_require_attachment === '1'} onChange={(b) => set('expenses_require_attachment', b ? '1' : '0')}
+            label="Facture obligatoire" hint="Impossible d’enregistrer une dépense sans sa photo ou son PDF." />
+        </div>
+      </Card>
+
+      <Card title="Rappels et échéances" hint="Pour les charges qui reviennent : STEG, SONEDE, loyer, salaires…">
+        <div className="space-y-4">
+          <div className="max-w-xs"><Label>Rappel sur l’accueil</Label>
+            <div className="flex items-center gap-2">
+              <Input type="number" min={0} max={60} className="w-24" value={v.expenses_remind_days} onChange={(e) => set('expenses_remind_days', e.target.value)} />
+              <span className="text-sm text-muted-foreground">jours avant l’échéance</span>
+            </div></div>
+          <Switch checked={v.expenses_auto_next === '1'} onChange={(b) => set('expenses_auto_next', b ? '1' : '0')}
+            label="Préparer l’échéance suivante" hint="Quand une charge récurrente est payée, la prochaine est créée « à payer », avec le même montant comme estimation." />
+        </div>
+      </Card>
+
+      <Card title="Rapports" hint="Date retenue pour compter une dépense dans une période (bénéfice net, dépenses par catégorie).">
+        <div className="space-y-2">
+          {([['facture', 'Date de la facture', 'La charge compte dans la période qu’elle concerne, même si elle est payée plus tard.'],
+             ['paiement', 'Date du paiement', 'Seules les dépenses payées comptent, au jour où l’argent est sorti.']] as const).map(([val, label, hint]) => (
+            <label key={val} className="flex items-start gap-2 text-sm">
+              <input type="radio" name="exp-basis" className="mt-1 accent-[hsl(var(--primary))]" checked={v.expenses_report_basis === val} onChange={() => set('expenses_report_basis', val)} />
+              <span><span className="font-medium">{label}</span><span className="block text-muted-foreground">{hint}</span></span>
+            </label>
+          ))}
+        </div>
+      </Card>
+
+      <ExpenseCategoriesManager />
+    </div>
+  )
+}
+
+/** Catégories de dépenses : enregistrées tout de suite (indépendamment du bouton « Enregistrer » des Paramètres). */
+function ExpenseCategoriesManager() {
+  const [cats, setCats] = useState<ExpenseCategory[]>([])
+  const [drafts, setDrafts] = useState<Record<number, ExpenseCategory>>({})
+  const [msg, setMsg] = useState('')
+  const load = useCallback(async () => { const r = await window.api.expenses.categories(); if (r.ok) { setCats(r.data); setDrafts({}) } }, [])
+  useEffect(() => { load() }, [load])
+  const row = (c: ExpenseCategory) => drafts[c.id] ?? c
+  const edit = (c: ExpenseCategory, patch: Partial<ExpenseCategory>) => setDrafts((d) => ({ ...d, [c.id]: { ...row(c), ...patch } }))
+
+  async function save(c: ExpenseCategory) {
+    const x = row(c)
+    const r = await window.api.expenses.saveCategory(c.id > 0 ? c.id : null, { name: x.name, recurrence: x.recurrence, dueDays: x.dueDays, color: x.color, active: x.active })
+    setMsg(r.ok ? `« ${x.name} » enregistrée.` : r.error)
+    if (r.ok) load()
+  }
+  async function remove(c: ExpenseCategory) {
+    const r = await window.api.expenses.deleteCategory(c.id)
+    setMsg(r.ok ? (r.data === 'desactivee' ? `« ${c.name} » est utilisée : elle a été désactivée (l’historique est conservé).` : `« ${c.name} » supprimée.`) : r.error)
+    if (r.ok) load()
+  }
+  const blank: ExpenseCategory = { id: -1, name: '', recurrence: 'aucune', dueDays: 0, color: '#94a3b8', active: true, usage: 0 }
+  const rows = drafts[-1] ? [...cats, drafts[-1]] : cats
+
+  return (
+    <Card title="Catégories de dépenses" hint="Périodicité : pour les rappels et l’échéance suivante. Délai : jours accordés pour payer après la date de facture.">
+      {msg && <p className="mb-3 rounded-md bg-muted px-3 py-2 text-sm">{msg}</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted-foreground">
+            <tr><th className="pb-2 pr-2 font-medium">Couleur</th><th className="pb-2 pr-2 font-medium">Nom</th><th className="pb-2 pr-2 font-medium">Périodicité</th>
+              <th className="pb-2 pr-2 font-medium">Délai</th><th className="pb-2 pr-2 font-medium">Active</th><th className="pb-2 font-medium" /></tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((c) => {
+              const x = row(c)
+              const changed = !!drafts[c.id]
+              return (
+                <tr key={c.id} className={cn(!x.active && 'opacity-60')}>
+                  <td className="py-2 pr-2"><input type="color" aria-label="Couleur" value={x.color} onChange={(e) => edit(c, { color: e.target.value })} className="h-8 w-10 cursor-pointer rounded border bg-transparent" /></td>
+                  <td className="py-2 pr-2"><Input className="h-9 min-w-[12rem]" value={x.name} onChange={(e) => edit(c, { name: e.target.value })} placeholder="Nouvelle catégorie" /></td>
+                  <td className="py-2 pr-2">
+                    <Select className="h-9" value={x.recurrence} onChange={(e) => edit(c, { recurrence: e.target.value as Recurrence })}>
+                      {(Object.keys(RECURRENCE_LABELS) as Recurrence[]).map((k) => <option key={k} value={k}>{RECURRENCE_LABELS[k]}</option>)}
+                    </Select>
+                  </td>
+                  <td className="py-2 pr-2"><div className="flex items-center gap-1"><Input type="number" min={0} max={120} className="h-9 w-20" value={x.dueDays} onChange={(e) => edit(c, { dueDays: Number(e.target.value) || 0 })} /><span className="text-xs text-muted-foreground">j</span></div></td>
+                  <td className="py-2 pr-2"><input type="checkbox" aria-label="Active" className="accent-[hsl(var(--primary))]" checked={x.active} onChange={(e) => edit(c, { active: e.target.checked })} /></td>
+                  <td className="whitespace-nowrap py-2 text-right">
+                    {changed && <Button size="sm" onClick={() => save(c)}>Enregistrer</Button>}
+                    {c.id > 0 && !changed && <Button size="sm" variant="ghost" title={c.usage ? `${c.usage} dépense(s) : sera désactivée` : 'Supprimer'} onClick={() => remove(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                    {c.id < 0 && <Button size="sm" variant="ghost" onClick={() => setDrafts(({ [-1]: _, ...d }) => d)}>Annuler</Button>}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {!drafts[-1] && <Button className="mt-3" variant="outline" size="sm" onClick={() => setDrafts((d) => ({ ...d, [-1]: blank }))}><Plus className="h-4 w-4" />Ajouter une catégorie</Button>}
+    </Card>
+  )
+}
+
 // ---------- Onglet Partage ----------
 const SAMPLE = { client: 'Ali Trabelsi', document: 'Facture', numero: 'FA-2026-0001', montant: '110,005', date: '29/10/2026', societe: 'Ma Quincaillerie' }
 
@@ -876,6 +1002,7 @@ export default function SettingsPage() {
           {tab === 'taxes' && <TaxesTab {...props} />}
           {tab === 'ventes' && <VentesTab {...props} />}
           {tab === 'stock' && <StockTab {...props} />}
+          {tab === 'depenses' && <DepensesTab {...props} />}
           {tab === 'impression' && <ImpressionTab {...props} />}
           {tab === 'partage' && <PartageTab {...props} />}
           {tab === 'sauvegarde' && <SauvegardeTab {...props} />}

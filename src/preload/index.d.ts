@@ -1,6 +1,7 @@
 import type { ShareDraft, ShareRequest } from '@shared/share'
 import type { DashboardData, NavBadges } from '@shared/dashboard'
 import type { PrinterDetection } from '@shared/printers'
+import type { Expense, ExpenseCategory, ExpenseCategoryInput, ExpenseInput, PayInput } from '@shared/expenses'
 import type { ArticleEvent, AuditEntry, Lot, LotDetail, PendingReception, ReceiveInput, TrackedArticle, TrackingMode } from '@shared/trace'
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
@@ -142,6 +143,17 @@ declare global {
         update: (p: ProfileInput) => Promise<Result<User>>
         getPrefs: <T = unknown>(key: string) => Promise<Result<T | null>>
         setPrefs: (key: string, value: unknown) => Promise<Result<void>>
+      }
+      expenses: {
+        categories: () => Promise<Result<ExpenseCategory[]>>
+        list: () => Promise<Result<Expense[]>>
+        create: (input: ExpenseInput) => Promise<Result<Expense>>
+        update: (id: number, input: ExpenseInput) => Promise<Result<Expense>>
+        pay: (id: number, p: PayInput) => Promise<Result<Expense>>
+        delete: (id: number) => Promise<Result<void>>
+        openAttachment: (id: number) => Promise<Result<void>>
+        saveCategory: (id: number | null, c: ExpenseCategoryInput) => Promise<Result<void>>
+        deleteCategory: (id: number) => Promise<Result<'supprimee' | 'desactivee'>>
       }
       dashboard: {
         today: () => Promise<Result<DashboardData>>

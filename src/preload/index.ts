@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { InvoiceInput, InvoicePaymentInput } from '@shared/invoice'
 import type { ArticleInput, MovementInput, SaleInput, PurchaseInput, SupplierInput, ClientInput, UserInput, ProfileInput, ReportOptions } from '@shared/types'
 import type { ReceiveInput, TrackingMode } from '@shared/trace'
+import type { ExpenseCategoryInput, ExpenseInput, PayInput } from '@shared/expenses'
 
 // Pont sécurisé : seules ces fonctions sont exposées à l'interface (window.api).
 const call = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args)
@@ -138,6 +139,17 @@ const api = {
     update: (p: ProfileInput) => call('profile:update', p),
     getPrefs: (key: string) => call('profile:getPrefs', key),
     setPrefs: (key: string, value: unknown) => call('profile:setPrefs', key, value)
+  },
+  expenses: {
+    categories: () => call('expenses:categories'),
+    list: () => call('expenses:list'),
+    create: (input: ExpenseInput) => call('expenses:create', input),
+    update: (id: number, input: ExpenseInput) => call('expenses:update', id, input),
+    pay: (id: number, p: PayInput) => call('expenses:pay', id, p),
+    delete: (id: number) => call('expenses:delete', id),
+    openAttachment: (id: number) => call('expenses:openAttachment', id),
+    saveCategory: (id: number | null, c: ExpenseCategoryInput) => call('expcat:save', id, c),
+    deleteCategory: (id: number) => call('expcat:delete', id)
   },
   dashboard: {
     today: () => call('dashboard:today'),

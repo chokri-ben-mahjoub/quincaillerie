@@ -54,7 +54,9 @@ function salesSection(): DashboardData['sales'] {
                             FROM sales s LEFT JOIN clients c ON c.id = s.client_id WHERE ${today} ORDER BY s.id DESC LIMIT 6`).all() as any[])
     .map((r) => ({ id: r.id, number: r.number, time: r.created_at.slice(11, 16), clientName: r.client_name, total: fromMillimes(r.total),
       method: r.method, cancelled: r.status === 'annulee' }))
+  const cashOut = one(`SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE status = 'payee' AND from_cash = 1 AND paid_date = date('now','localtime')`).t
   return {
+    cashOut: fromMillimes(cashOut),
     count: head.n, total: fromMillimes(head.total), margin: isAllowed('reports:get') ? fromMillimes(head.total - cost) : null,
     avgBasket: head.n ? fromMillimes(Math.round(head.total / head.n)) : 0, yesterdaySameTime: fromMillimes(yesterday),
     byHour, byMethod, creditToday: fromMillimes(head.due), cancelledCount: cancelled, last
@@ -102,6 +104,21 @@ function pendingReceptions(): number {
     GROUP BY pi.purchase_id, pi.article_id HAVING done < q - 0.0005)`).n
 }
 
+/** Dépenses à payer : en retard, ou dont l'échéance tombe dans les X jours (Paramètres > Dépenses). */
+function expensesSection(): DashboardData['expenses'] {
+  const days = Number(getSettings().expenses_remind_days) || 0
+  const rows = getDb().prepare(`
+    SELECT e.id, e.label, c.name AS category_name, e.amount, COALESCE(e.due_date, e.expense_date) AS due,
+           COALESCE(e.due_date, e.expense_date) < date('now','localtime') AS overdue
+    FROM expenses e JOIN expense_categories c ON c.id = e.category_id
+    WHERE e.status = 'a_payer' AND COALESCE(e.due_date, e.expense_date) <= date('now','localtime', ?)
+    ORDER BY due`).all(`+${days} days`) as any[]
+  return {
+    dueCount: rows.length, dueTotal: fromMillimes(rows.reduce((s, r) => s + r.amount, 0)), overdueCount: rows.filter((r) => r.overdue).length,
+    items: rows.slice(0, 4).map((r) => ({ id: r.id, label: r.label, categoryName: r.category_name, amount: fromMillimes(r.amount), dueDate: r.due, overdue: !!r.overdue }))
+  }
+}
+
 function today(): DashboardData {
   return {
     sales: isAllowed('sales:list') ? salesSection() : null,
@@ -111,7 +128,8 @@ function today(): DashboardData {
       const r = one('SELECT COUNT(*) AS n, COALESCE(SUM(balance), 0) AS t FROM clients WHERE active = 1 AND balance > 0')
       return { debtorCount: r.n, debtTotal: fromMillimes(r.t) }
     })() : null,
-    lots: isAllowed('trace:lots') ? lotsSection() : null
+    lots: isAllowed('trace:lots') ? lotsSection() : null,
+    expenses: isAllowed('expenses:list') ? expensesSection() : null
   }
 }
 
@@ -123,6 +141,8 @@ function badges(): NavBadges {
     SELECT COUNT(*) AS n FROM invoices i WHERE i.status = 'validee' AND i.due_date < date('now','localtime')
     AND i.total_ttc > COALESCE((SELECT SUM(amount) FROM invoice_payments p WHERE p.invoice_id = i.id), 0)`).n
   if (isAllowed('trace:lots')) out.tracabilite = pendingReceptions()
+  if (isAllowed('expenses:list')) out.depenses = one(`SELECT COUNT(*) AS n FROM expenses WHERE status = 'a_payer'
+    AND COALESCE(due_date, expense_date) <= date('now','localtime', ?)`, `+${Number(getSettings().expenses_remind_days) || 0} days`).n
   return out
 }
 

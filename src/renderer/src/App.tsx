@@ -4,6 +4,7 @@ import { NAV, Sidebar, type PageId } from '@/components/Sidebar'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ProfileDialog } from '@/components/ProfileDialog'
 import AccueilPage from '@/pages/AccueilPage'
+import DepensesPage from '@/pages/DepensesPage'
 import ArticlesPage from '@/pages/ArticlesPage'
 import StockPage from '@/pages/StockPage'
 import CaissePage from '@/pages/CaissePage'
@@ -105,6 +106,7 @@ export default function App() {
 
   const pages: Record<PageId, JSX.Element> = {
     accueil: <AccueilPage user={user} onNavigate={setPage} />,
+    depenses: <DepensesPage />,
     articles: <ArticlesPage />,
     caisse: <CaissePage />,
     stock: <StockPage />,

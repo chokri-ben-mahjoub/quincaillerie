@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { getDb } from '../db'
+import { getSettings } from '../settings'
 import { fromMillimes as m } from '@shared/money'
 import type { ReportData, ReportOptions, Result } from '@shared/types'
 
@@ -47,8 +48,16 @@ function buildReport(from: string, to: string, opts: ReportOptions = {}): Report
   const debt = db.prepare('SELECT COALESCE(SUM(balance),0) AS v FROM clients WHERE active = 1').get() as any
   const stock = db.prepare('SELECT COALESCE(SUM(MAX(stock,0) * purchase_price),0) AS v FROM articles WHERE active = 1').get() as any
 
+  // Dépenses : comptées à la date de la facture (charges de la période) ou à la date de paiement (sorties d'argent).
+  const basis = getSettings().expenses_report_basis === 'paiement' ? 'paiement' : 'facture'
+  const expWhere = basis === 'paiement' ? `e.status = 'payee' AND e.paid_date BETWEEN ? AND ?` : `e.expense_date BETWEEN ? AND ?`
+  const expByCat = db.prepare(`SELECT c.name, c.color, SUM(e.amount) AS total FROM expenses e JOIN expense_categories c ON c.id = e.category_id
+                               WHERE ${expWhere} GROUP BY c.id ORDER BY total DESC`).all(from, to) as any[]
+  const expPrev = (db.prepare(`SELECT COALESCE(SUM(e.amount), 0) AS t FROM expenses e WHERE ${expWhere}`).get(prevFrom, prevTo) as any).t
+
   return {
     from, to,
+    expenses: { total: m(expByCat.reduce((s, r) => s + r.total, 0)), basis, byCategory: expByCat.map((r) => ({ name: r.name, color: r.color, total: m(r.total) })) },
     revenue: m(kpi.revenue), salesCount: kpi.n,
     avgBasket: kpi.n ? m(kpi.revenue / kpi.n) : 0,
     grossMargin: m(kpi.revenue - Math.round(cost.cost)),
@@ -58,7 +67,7 @@ function buildReport(from: string, to: string, opts: ReportOptions = {}): Report
     byCategory: byCategory.map((d) => ({ name: d.name, total: m(d.total) })),
     topArticles: top.map((d) => ({ designation: d.designation, quantity: d.quantity, total: m(d.total), margin: m(d.margin) })),
     previous: { from: prevFrom, to: prevTo, revenue: m(pk.revenue), grossMargin: m(pk.revenue - Math.round(pc.cost)), salesCount: pk.n,
-      avgBasket: pk.n ? m(pk.revenue / pk.n) : 0 }
+      avgBasket: pk.n ? m(pk.revenue / pk.n) : 0, expenses: m(expPrev) }
   }
 }
 
