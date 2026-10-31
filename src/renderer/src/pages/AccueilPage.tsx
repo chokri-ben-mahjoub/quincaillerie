@@ -21,7 +21,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : 
 
 /** Imprimantes : celles enregistrées doivent être branchées ; une imprimante de tickets détectée mais pas réglée est signalée. */
 function printerTodos(p: PrinterDetection | null): Todo[] {
-  if (!p) return []
+  if (!p?.ticket || !p?.a4) return [] // détection indisponible : rien à signaler
   const t: Todo[] = []
   const go = { page: 'parametres' as PageId, tab: 'impression' }
   if (p.ticket.configured && !p.ticket.found) t.push({ key: 'pr-ticket', tone: 'danger', ...go, text: 'Imprimante de tickets introuvable',
@@ -41,6 +41,18 @@ function todos(d: DashboardData): Todo[] {
   if (d.invoices?.overdueCount) t.push({ key: 'late', tone: 'danger', page: 'factures',
     text: `${plural(d.invoices.overdueCount, 'facture en retard', 'factures en retard')} de paiement`, detail: `${formatMoney(d.invoices.overdueTotal)} à relancer` })
   if (d.lots?.expired) t.push({ key: 'expired', tone: 'danger', page: 'tracabilite', text: `${plural(d.lots.expired, 'lot périmé', 'lots périmés')} encore en stock` })
+  // Caisse : oubliée ouverte depuis un jour précédent, ou pas encore ouverte aujourd'hui.
+  if (d.cash?.stale) t.push({ key: 'cash-stale', tone: 'danger', page: 'caisse', text: 'Caisse d’un jour précédent jamais clôturée',
+    detail: `Ouverte le ${d.cash.openedAt!.slice(0, 10).split('-').reverse().join('/')} : clôturez-la avec le comptage du tiroir` })
+  else if (d.cash && !d.cash.open) t.push({ key: 'cash-closed', tone: 'neutral', page: 'caisse', text: 'Caisse pas encore ouverte aujourd’hui', detail: 'Ouvrez-la avec le fond de caisse' })
+  // Chèques : impayés, à remettre en banque, émis à provisionner, à compléter.
+  if (d.cheques?.unpaid.count) t.push({ key: 'chq-unpaid', tone: 'danger', page: 'cheques', text: `${plural(d.cheques.unpaid.count, 'chèque impayé', 'chèques impayés')}`,
+    detail: `${formatMoney(d.cheques.unpaid.total)} à récupérer` })
+  if (d.cheques?.toDeposit.count) t.push({ key: 'chq-dep', tone: 'warning', page: 'cheques', text: `${plural(d.cheques.toDeposit.count, 'chèque', 'chèques')} à remettre en banque`,
+    detail: `${formatMoney(d.cheques.toDeposit.total)} encaissables bientôt ou déjà` })
+  for (const c of d.cheques?.toProvision ?? []) t.push({ key: `chq-prov-${c.id}`, tone: 'warning', page: 'cheques',
+    text: `Provision pour le chèque${c.number ? ` n° ${c.number}` : ''} à ${c.holder}`, detail: `${formatMoney(c.amount)} débités vers le ${c.dueDate.split('-').reverse().join('/')}` })
+  if (d.cheques?.incomplete) t.push({ key: 'chq-inc', tone: 'neutral', page: 'cheques', text: `${plural(d.cheques.incomplete, 'chèque', 'chèques')} à compléter (n°, banque)` })
   // Factures de charges : chacune en retard est signalée, puis celles qui arrivent à échéance.
   for (const e of d.expenses?.items ?? []) t.push({ key: `exp-${e.id}`, tone: e.overdue ? 'danger' : 'warning', page: 'depenses',
     text: `${e.label} ${e.overdue ? 'en retard' : 'à payer'}`, detail: `${formatMoney(e.amount)}, ${e.overdue ? 'depuis le' : 'avant le'} ${e.dueDate.split('-').reverse().join('/')}` })
@@ -86,7 +98,7 @@ export default function AccueilPage({ user, onNavigate }: { user: User; onNaviga
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
   const printerList = printerTodos(printers)
   const list = data ? [...printerList.filter((x) => x.tone === 'danger'), ...todos(data), ...printerList.filter((x) => x.tone !== 'danger')] : []
-  const hasTodoSources = !!data && (data.stock || data.invoices || data.clients || data.lots || data.expenses || printerList.length > 0)
+  const hasTodoSources = !!data && (data.stock || data.invoices || data.clients || data.lots || data.expenses || data.cash || data.cheques || printerList.length > 0)
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 p-8">

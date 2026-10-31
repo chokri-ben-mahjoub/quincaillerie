@@ -36,6 +36,13 @@ export interface DashboardData {
     dueCount: number; dueTotal: number; overdueCount: number
     items: { id: number; label: string; categoryName: string; amount: number; dueDate: string; overdue: boolean }[]
   } | null
+  cash: { open: boolean; openedAt: string | null; stale: boolean } | null // stale : ouverte un jour précédent, jamais clôturée
+  cheques: {
+    toDeposit: { count: number; total: number } // reçus, en portefeuille, encaissables d'ici X jours
+    toProvision: { id: number; holder: string; number: string; amount: number; dueDate: string }[] // émis, à débiter bientôt
+    unpaid: { count: number; total: number }
+    incomplete: number // saisis automatiquement, n° ou banque manquants
+  } | null
 }
 
 /** Pastilles de la barre latérale, par page. */

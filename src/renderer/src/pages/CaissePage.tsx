@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CashSessionBar } from '@/components/CashSession'
 import {
   Banknote, Check, CreditCard, Download, Eye, FileText, History, Minus, Pencil, Plus, Printer, ScanBarcode, Search, Trash2, UserRound, Users, X
 } from 'lucide-react'
@@ -202,6 +203,7 @@ export default function CaissePage() {
     <div className="grid h-full grid-cols-[1fr_410px] gap-6 p-8">
       {/* Colonne gauche : onglets + scan + panier */}
       <section className="flex min-h-0 min-w-0 flex-col gap-4">
+        <CashSessionBar />
         <header>
           <h1 className="text-2xl font-semibold tracking-tight">Caisse</h1>
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">

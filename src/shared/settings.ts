@@ -92,6 +92,19 @@ export const SETTING_DEFS: SettingDef[] = [
   def('perm_gerant', PERMISSION_IDS.join(','), 'list', { options: PERMISSION_IDS }),
   def('perm_caissier', 'caisse', 'list', { options: PERMISSION_IDS }),
 
+  // ----- Caisse : ouverture et clôture -----
+  def('cash_session_required', '0', 'bool'), // interdire d'encaisser tant que la caisse n'est pas ouverte
+  def('cash_default_float', '100.000', 'money'), // fond de caisse proposé à l'ouverture
+  def('cash_gap_tolerance', '0.500', 'money'), // écart toléré sans explication à la clôture
+  def('cash_denominations', '50,20,10,5,2,1,0.5,0.2,0.1,0.05,0.02,0.01', 'strings', { maxLength: 8 }), // billets et pièces à compter (DT)
+  def('cash_blind_count', '0', 'bool'), // comptage « à l'aveugle » : le montant attendu n'est montré qu'après le comptage
+  def('cash_print_z', '1', 'bool'), // imprimer le ticket de clôture (Z)
+
+  // ----- Chèques et traites -----
+  def('cheques_auto_capture', '1', 'bool'), // chaque paiement par chèque crée sa ligne à compléter
+  def('cheques_remind_days', '3', 'int', { min: 0, max: 60 }), // rappel avant la date d'encaissement / d'échéance
+  def('cheques_banks', 'BIAT,STB,BNA,Attijari Bank,Amen Bank,BH Bank,UIB,UBCI,Banque Zitouna,ATB,BT,QNB,Al Baraka Bank,Wifak Bank,La Poste', 'strings', { maxLength: 40 }),
+
   // ----- Dépenses -----
   def('expenses_methods', 'especes,cheque,virement,carte,prelevement', 'list', { options: ['especes', 'cheque', 'virement', 'carte', 'prelevement'] }),
   def('expenses_default_method', 'especes', 'choice', { options: ['especes', 'cheque', 'virement', 'carte', 'prelevement'] }),
@@ -214,6 +227,12 @@ export interface AppConfig {
   expenseDefaultMethod: string
   expenseCashEnabled: boolean // option « payée avec l'argent de la caisse »
   expenseRequireAttachment: boolean
+  cashSessionRequired: boolean
+  cashDefaultFloat: number
+  cashGapTolerance: number
+  cashDenominations: number[]
+  cashBlindCount: boolean
+  chequeBanks: string[]
 }
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
@@ -221,7 +240,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   creditDefaultLimit: 0, stockDefaultMin: 0, stockDefaultUnit: 'pièce', alertsEnabled: true, alertMarginPct: 0,
   units: [...UNITS], pages: [],
   allowSaleEdit: true, autoPrintTicket: false, whatsappEnabled: true, emailEnabled: true,
-  expenseMethods: ['especes', 'cheque', 'virement', 'carte', 'prelevement'], expenseDefaultMethod: 'especes', expenseCashEnabled: true, expenseRequireAttachment: false
+  expenseMethods: ['especes', 'cheque', 'virement', 'carte', 'prelevement'], expenseDefaultMethod: 'especes', expenseCashEnabled: true, expenseRequireAttachment: false,
+  cashSessionRequired: false, cashDefaultFloat: 100, cashGapTolerance: 0.5, cashDenominations: [50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01], cashBlindCount: false, chequeBanks: []
 }
 
 /** Niveau de stock d'un article : rupture, bas (alerte) ou normal. L'alerte se déclenche à seuil + marge %. */

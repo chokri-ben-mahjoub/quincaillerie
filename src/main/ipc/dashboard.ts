@@ -119,6 +119,25 @@ function expensesSection(): DashboardData['expenses'] {
   }
 }
 
+function cashSection(): DashboardData['cash'] {
+  const s = one(`SELECT opened_at, date(opened_at) < date('now','localtime') AS stale FROM cash_sessions WHERE status = 'ouverte'`)
+  return { open: !!s, openedAt: s?.opened_at ?? null, stale: !!s?.stale }
+}
+
+function chequesSection(): DashboardData['cheques'] {
+  const horizon = `+${Number(getSettings().cheques_remind_days) || 0} days`
+  const dep = one(`SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS t FROM cheques WHERE direction = 'recu' AND status = 'portefeuille'
+                   AND due_date <= date('now','localtime', ?)`, horizon)
+  const unpaid = one(`SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS t FROM cheques WHERE status = 'impaye'`)
+  const prov = getDb().prepare(`SELECT id, holder, number, amount, due_date FROM cheques WHERE direction = 'emis' AND status = 'emis'
+                                AND due_date <= date('now','localtime', ?) ORDER BY due_date LIMIT 4`).all(horizon) as any[]
+  return {
+    toDeposit: { count: dep.n, total: fromMillimes(dep.t) }, unpaid: { count: unpaid.n, total: fromMillimes(unpaid.t) },
+    toProvision: prov.map((r) => ({ id: r.id, holder: r.holder, number: r.number, amount: fromMillimes(r.amount), dueDate: r.due_date })),
+    incomplete: one(`SELECT COUNT(*) AS n FROM cheques WHERE status NOT IN ('annule') AND (number = '' OR bank = '')`).n
+  }
+}
+
 function today(): DashboardData {
   return {
     sales: isAllowed('sales:list') ? salesSection() : null,
@@ -129,7 +148,9 @@ function today(): DashboardData {
       return { debtorCount: r.n, debtTotal: fromMillimes(r.t) }
     })() : null,
     lots: isAllowed('trace:lots') ? lotsSection() : null,
-    expenses: isAllowed('expenses:list') ? expensesSection() : null
+    expenses: isAllowed('expenses:list') ? expensesSection() : null,
+    cash: isAllowed('cash:current') ? cashSection() : null,
+    cheques: isAllowed('cheques:list') ? chequesSection() : null
   }
 }
 
@@ -141,6 +162,10 @@ function badges(): NavBadges {
     SELECT COUNT(*) AS n FROM invoices i WHERE i.status = 'validee' AND i.due_date < date('now','localtime')
     AND i.total_ttc > COALESCE((SELECT SUM(amount) FROM invoice_payments p WHERE p.invoice_id = i.id), 0)`).n
   if (isAllowed('trace:lots')) out.tracabilite = pendingReceptions()
+  if (isAllowed('cheques:list')) {
+    const c = chequesSection()!
+    out.cheques = c.toDeposit.count + c.toProvision.length + c.unpaid.count
+  }
   if (isAllowed('expenses:list')) out.depenses = one(`SELECT COUNT(*) AS n FROM expenses WHERE status = 'a_payer'
     AND COALESCE(due_date, expense_date) <= date('now','localtime', ?)`, `+${Number(getSettings().expenses_remind_days) || 0} days`).n
   return out

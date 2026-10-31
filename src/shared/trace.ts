@@ -134,6 +134,8 @@ export const AUDIT_LABELS: Record<string, string> = {
   'demo:generate': 'Données de démonstration générées', 'demo:reset': 'Remise à zéro de la base',
   'expenses:create': 'Dépense enregistrée', 'expenses:update': 'Dépense modifiée', 'expenses:pay': 'Dépense payée', 'expenses:delete': 'Dépense supprimée',
   'expcat:save': 'Catégorie de dépense enregistrée', 'expcat:delete': 'Catégorie de dépense supprimée',
+  'cash:open': 'Caisse ouverte', 'cash:move': 'Apport / retrait de caisse', 'cash:close': 'Caisse clôturée', 'cash:printZ': 'Ticket de clôture réimprimé',
+  'cheques:create': 'Chèque enregistré', 'cheques:update': 'Chèque modifié', 'cheques:setStatus': 'État de chèque modifié', 'cheques:delete': 'Chèque supprimé',
   'profile:update': 'Profil modifié', 'profile:setPrefs': 'Préférences d’affichage modifiées',
   'trace:receive': 'Lots / n° de série saisis', 'trace:setTracking': 'Mode de suivi modifié', 'trace:reassign': 'Affectation de lot corrigée'
 }

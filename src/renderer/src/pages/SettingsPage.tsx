@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Database, DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Receipt, RefreshCw, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Wallet, Wand2, Warehouse, X } from 'lucide-react'
+import { Banknote, CheckCircle2, Database, DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Receipt, RefreshCw, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Wallet, Wand2, Warehouse, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
@@ -21,6 +21,7 @@ const TABS = [
   { id: 'ventes', label: 'Ventes', icon: ShoppingCart, ready: true },
   { id: 'stock', label: 'Stock', icon: Warehouse, ready: true },
   { id: 'impression', label: 'Impression', icon: Printer, ready: true },
+  { id: 'caisse', label: 'Caisse et chèques', icon: Banknote, ready: true },
   { id: 'depenses', label: 'Dépenses', icon: Wallet, ready: true },
   { id: 'partage', label: 'Partage', icon: Share2, ready: true },
   { id: 'utilisateurs', label: 'Utilisateurs / droits', icon: ShieldCheck, ready: true },
@@ -522,6 +523,68 @@ function ImpressionTab({ v, set }: TabProps) {
   )
 }
 
+// ---------- Onglet Caisse et chèques ----------
+function CaisseTab({ v, set }: TabProps) {
+  const denoms = v.cash_denominations.split(',').filter(Boolean)
+  const banks = v.cheques_banks.split(',').filter(Boolean)
+  const [newDenom, setNewDenom] = useState('')
+  const [newBank, setNewBank] = useState('')
+  const addDenom = () => {
+    const n = Number(newDenom.replace(',', '.'))
+    if (!(n > 0) || denoms.some((d) => Number(d) === n)) return
+    set('cash_denominations', [...denoms, String(n)].sort((a, b) => Number(b) - Number(a)).join(',')); setNewDenom('')
+  }
+  const addBank = () => {
+    const b = newBank.trim()
+    if (!b || b.includes(',') || banks.some((x) => x.toLowerCase() === b.toLowerCase())) return
+    set('cheques_banks', [...banks, b].join(',')); setNewBank('')
+  }
+  const chip = (label: string, onRemove: () => void) => (
+    <span key={label} className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium">{label}
+      <button type="button" title="Retirer" onClick={onRemove}><X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" /></button></span>
+  )
+  return (
+    <div className="space-y-6">
+      <Card title="Ouverture et clôture de caisse" hint="Le fond de caisse le matin, le comptage du tiroir le soir, et l’écart avec ce que la caisse attend.">
+        <div className="space-y-4">
+          <Switch checked={v.cash_session_required === '1'} onChange={(b) => set('cash_session_required', b ? '1' : '0')}
+            label="Caisse ouverte obligatoire pour vendre" hint="Aucun encaissement tant que la caisse n’a pas été ouverte avec son fond." />
+          <div className="grid max-w-xl grid-cols-2 gap-4">
+            <div><Label>Fond de caisse proposé (DT)</Label><Input type="number" step="0.001" min={0} value={v.cash_default_float} onChange={(e) => set('cash_default_float', e.target.value)} /></div>
+            <div><Label>Écart toléré sans explication (DT)</Label><Input type="number" step="0.001" min={0} value={v.cash_gap_tolerance} onChange={(e) => set('cash_gap_tolerance', e.target.value)} /></div>
+          </div>
+          <Switch checked={v.cash_blind_count === '1'} onChange={(b) => set('cash_blind_count', b ? '1' : '0')}
+            label="Comptage à l’aveugle" hint="Le caissier compte d’abord ; le montant attendu ne s’affiche qu’après. Les écarts sont plus honnêtes." />
+          <Switch checked={v.cash_print_z === '1'} onChange={(b) => set('cash_print_z', b ? '1' : '0')}
+            label="Imprimer le ticket de clôture (Z)" hint="Sur l’imprimante de tickets, à chaque clôture. Il reste réimprimable depuis l’historique." />
+          <div><Label>Billets et pièces à compter (DT)</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              {denoms.map((d) => chip(Number(d) >= 1 ? `${d} DT` : `${Math.round(Number(d) * 1000)} mill.`, () => denoms.length > 1 && set('cash_denominations', denoms.filter((x) => x !== d).join(','))))}
+              <Input value={newDenom} onChange={(e) => setNewDenom(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addDenom())} placeholder="Ex. 0.005" className="h-9 w-28" />
+              <Button type="button" variant="outline" size="sm" onClick={addDenom}><Plus className="h-4 w-4" />Ajouter</Button>
+            </div></div>
+        </div>
+      </Card>
+
+      <Card title="Chèques et traites" hint="Suivi des chèques reçus et émis, de la réception à l’encaissement.">
+        <div className="space-y-4">
+          <Switch checked={v.cheques_auto_capture === '1'} onChange={(b) => set('cheques_auto_capture', b ? '1' : '0')}
+            label="Saisie automatique" hint="Chaque paiement par chèque ou traite (vente, facture, dépense) crée sa ligne, à compléter ensuite avec le n° et la banque." />
+          <div className="max-w-xs"><Label>Rappel sur l’accueil</Label>
+            <div className="flex items-center gap-2"><Input type="number" min={0} max={60} className="w-24" value={v.cheques_remind_days} onChange={(e) => set('cheques_remind_days', e.target.value)} />
+              <span className="text-sm text-muted-foreground">jours avant l’encaissement / le débit</span></div></div>
+          <div><Label>Banques proposées</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              {banks.map((b) => chip(b, () => set('cheques_banks', banks.filter((x) => x !== b).join(','))))}
+              <Input value={newBank} onChange={(e) => setNewBank(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addBank())} placeholder="Nouvelle banque" className="h-9 w-40" />
+              <Button type="button" variant="outline" size="sm" onClick={addBank}><Plus className="h-4 w-4" />Ajouter</Button>
+            </div></div>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 // ---------- Onglet Dépenses ----------
 function DepensesTab({ v, set }: TabProps) {
   const methods = v.expenses_methods.split(',').filter(Boolean)
@@ -1002,6 +1065,7 @@ export default function SettingsPage() {
           {tab === 'taxes' && <TaxesTab {...props} />}
           {tab === 'ventes' && <VentesTab {...props} />}
           {tab === 'stock' && <StockTab {...props} />}
+          {tab === 'caisse' && <CaisseTab {...props} />}
           {tab === 'depenses' && <DepensesTab {...props} />}
           {tab === 'impression' && <ImpressionTab {...props} />}
           {tab === 'partage' && <PartageTab {...props} />}

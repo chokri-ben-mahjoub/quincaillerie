@@ -18,6 +18,8 @@ import { installGuard, registerAuthHandlers } from './ipc/auth'
 import { registerTraceHandlers } from './ipc/trace'
 import { registerDashboardHandlers } from './ipc/dashboard'
 import { registerExpenseHandlers } from './ipc/expenses'
+import { registerCashHandlers } from './ipc/cash'
+import { registerChequeHandlers } from './ipc/cheques'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -65,6 +67,8 @@ app.whenReady().then(() => {
   registerTraceHandlers()
   registerDashboardHandlers()
   registerExpenseHandlers()
+  registerCashHandlers()
+  registerChequeHandlers()
   createWindow()
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow())
 })

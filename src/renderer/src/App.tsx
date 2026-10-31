@@ -5,6 +5,7 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { ProfileDialog } from '@/components/ProfileDialog'
 import AccueilPage from '@/pages/AccueilPage'
 import DepensesPage from '@/pages/DepensesPage'
+import ChequesPage from '@/pages/ChequesPage'
 import ArticlesPage from '@/pages/ArticlesPage'
 import StockPage from '@/pages/StockPage'
 import CaissePage from '@/pages/CaissePage'
@@ -107,6 +108,7 @@ export default function App() {
   const pages: Record<PageId, JSX.Element> = {
     accueil: <AccueilPage user={user} onNavigate={setPage} />,
     depenses: <DepensesPage />,
+    cheques: <ChequesPage />,
     articles: <ArticlesPage />,
     caisse: <CaissePage />,
     stock: <StockPage />,

@@ -51,6 +51,9 @@ function createSale(input: SaleInput): Receipt {
   return db.transaction((): Receipt => {
     const cfg = getSettings() // règles de vente lues dans les paramètres (Paramètres > Ventes)
     if (!cfg.sales_payment_methods.split(',').includes(input.method)) throw new Error('Mode de paiement non autorisé.')
+    // Paramètres > Caisse : pas d'encaissement tant que la caisse n'est pas ouverte avec son fond.
+    if (cfg.cash_session_required === '1' && !db.prepare(`SELECT 1 FROM cash_sessions WHERE status = 'ouverte'`).get())
+      throw new Error('La caisse n’est pas ouverte : ouvrez-la (fond de caisse) avant d’encaisser.')
     if (input.replaces) reverseSale(db, input.replaces, 'Modifiée : remplacée par une nouvelle vente')
 
     const getArticle = db.prepare(

@@ -14,7 +14,7 @@ const DOC_COMMON = ['company:get', 'share:', 'print:', 'clients:list', 'supplier
 
 export const PERMISSIONS: Permission[] = [
   { id: 'articles', label: 'Articles', hint: 'Catalogue, import Excel, catégories', channels: ['articles:', 'categories:'] },
-  { id: 'caisse', label: 'Caisse', hint: 'Ventes et tickets', channels: ['sales:', 'tickets:', 'articles:list', 'clients:list', 'clients:statement', 'clients:pay', 'categories:list'] },
+  { id: 'caisse', label: 'Caisse', hint: 'Ventes, tickets, ouverture et clôture', channels: ['sales:', 'tickets:', 'cash:', 'articles:list', 'clients:list', 'clients:statement', 'clients:pay', 'categories:list'] },
   { id: 'stock', label: 'Stock', hint: 'Mouvements et alertes', channels: ['stock:', 'articles:list'] },
   { id: 'achats', label: 'Achats & fournisseurs', hint: 'Réceptions, dettes fournisseurs', channels: ['purchases:', 'suppliers:', 'articles:list'] },
   { id: 'clients', label: 'Clients', hint: 'Fichier clients, crédit, règlements', channels: ['clients:'] },
@@ -24,7 +24,8 @@ export const PERMISSIONS: Permission[] = [
   { id: 'commandes', label: 'Bons de commande', hint: 'Commandes fournisseurs', channels: ['orders:', ...DOC_COMMON] },
   { id: 'livraisons', label: 'Bons de livraison', hint: 'Livraisons clients', channels: ['deliveries:', ...DOC_COMMON] },
   { id: 'tracabilite', label: 'Traçabilité', hint: 'Lots, n° de série, historique des articles', channels: ['trace:', 'articles:list'] },
-  { id: 'depenses', label: 'Dépenses', hint: 'Charges : STEG, SONEDE, loyer, salaires…', channels: ['expenses:'] }
+  { id: 'depenses', label: 'Dépenses', hint: 'Charges : STEG, SONEDE, loyer, salaires…', channels: ['expenses:'] },
+  { id: 'cheques', label: 'Chèques et traites', hint: 'Portefeuille, remises en banque, échéances', channels: ['cheques:', 'clients:list', 'suppliers:list'] }
 ]
 
 export const PERMISSION_IDS = PERMISSIONS.map((p) => p.id)

@@ -2,6 +2,8 @@ import type { ShareDraft, ShareRequest } from '@shared/share'
 import type { DashboardData, NavBadges } from '@shared/dashboard'
 import type { PrinterDetection } from '@shared/printers'
 import type { Expense, ExpenseCategory, ExpenseCategoryInput, ExpenseInput, PayInput } from '@shared/expenses'
+import type { CashSession, CashSessionDetail, CloseInput } from '@shared/cash'
+import type { Cheque, ChequeInput, ChequeStatus } from '@shared/cheques'
 import type { ArticleEvent, AuditEntry, Lot, LotDetail, PendingReception, ReceiveInput, TrackedArticle, TrackingMode } from '@shared/trace'
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
@@ -154,6 +156,22 @@ declare global {
         openAttachment: (id: number) => Promise<Result<void>>
         saveCategory: (id: number | null, c: ExpenseCategoryInput) => Promise<Result<void>>
         deleteCategory: (id: number) => Promise<Result<'supprimee' | 'desactivee'>>
+      }
+      cash: {
+        current: () => Promise<Result<CashSessionDetail | null>>
+        open: (openingFloat: number) => Promise<Result<CashSessionDetail>>
+        move: (type: 'apport' | 'retrait', amount: number, reason: string) => Promise<Result<CashSessionDetail>>
+        close: (input: CloseInput) => Promise<Result<{ session: CashSessionDetail; printError: string | null }>>
+        history: () => Promise<Result<CashSession[]>>
+        get: (id: number) => Promise<Result<CashSessionDetail>>
+        printZ: (id: number) => Promise<Result<boolean>>
+      }
+      cheques: {
+        list: () => Promise<Result<Cheque[]>>
+        create: (c: ChequeInput) => Promise<Result<Cheque>>
+        update: (id: number, c: ChequeInput) => Promise<Result<Cheque>>
+        setStatus: (ids: number[], status: ChequeStatus, date: string) => Promise<Result<number>>
+        delete: (id: number) => Promise<Result<void>>
       }
       dashboard: {
         today: () => Promise<Result<DashboardData>>

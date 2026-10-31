@@ -1,6 +1,6 @@
 import { ROLE_LABELS, type User } from '@shared/types'
 import {
-  BarChart3, ClipboardCheck, ClipboardList, FileSignature, FileText, Hammer, House, LogOut, Moon, Package, PanelLeftClose, PanelLeftOpen,
+  BarChart3, Banknote, ClipboardCheck, ClipboardList, FileSignature, FileText, Hammer, House, LogOut, Moon, Package, PanelLeftClose, PanelLeftOpen,
   ScanSearch, Search, Settings, ShoppingCart, Sun, Truck, UserCog, Users, Wallet, Warehouse
 } from 'lucide-react'
 import type { NavBadges } from '@shared/dashboard'
@@ -20,6 +20,7 @@ export const NAV = [
   { id: 'achats', label: 'Achats', icon: Truck, group: 'Marchandise' },
   { id: 'commandes', label: 'Bons de commande', icon: ClipboardList, group: 'Marchandise' },
   { id: 'tracabilite', label: 'Traçabilité', icon: ScanSearch, group: 'Marchandise' },
+  { id: 'cheques', label: 'Chèques et traites', icon: Banknote, group: 'Pilotage' },
   { id: 'depenses', label: 'Dépenses', icon: Wallet, group: 'Pilotage' },
   { id: 'rapports', label: 'Rapports', icon: BarChart3, group: 'Pilotage' },
   { id: 'utilisateurs', label: 'Utilisateurs', icon: UserCog, group: 'Administration' },
@@ -33,7 +34,8 @@ const BADGE_HINTS: Partial<Record<PageId, string>> = {
   stock: 'article(s) en rupture ou sous le seuil',
   factures: 'facture(s) en retard de paiement',
   tracabilite: 'réception(s) à identifier',
-  depenses: 'facture(s) à payer bientôt ou en retard'
+  depenses: 'facture(s) à payer bientôt ou en retard',
+  cheques: 'chèque(s) à remettre, à provisionner ou impayé(s)'
 }
 
 interface Props {

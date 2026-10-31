@@ -3,6 +3,8 @@ import type { InvoiceInput, InvoicePaymentInput } from '@shared/invoice'
 import type { ArticleInput, MovementInput, SaleInput, PurchaseInput, SupplierInput, ClientInput, UserInput, ProfileInput, ReportOptions } from '@shared/types'
 import type { ReceiveInput, TrackingMode } from '@shared/trace'
 import type { ExpenseCategoryInput, ExpenseInput, PayInput } from '@shared/expenses'
+import type { CloseInput } from '@shared/cash'
+import type { ChequeInput, ChequeStatus } from '@shared/cheques'
 
 // Pont sécurisé : seules ces fonctions sont exposées à l'interface (window.api).
 const call = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args)
@@ -150,6 +152,22 @@ const api = {
     openAttachment: (id: number) => call('expenses:openAttachment', id),
     saveCategory: (id: number | null, c: ExpenseCategoryInput) => call('expcat:save', id, c),
     deleteCategory: (id: number) => call('expcat:delete', id)
+  },
+  cash: {
+    current: () => call('cash:current'),
+    open: (openingFloat: number) => call('cash:open', openingFloat),
+    move: (type: 'apport' | 'retrait', amount: number, reason: string) => call('cash:move', type, amount, reason),
+    close: (input: CloseInput) => call('cash:close', input),
+    history: () => call('cash:history'),
+    get: (id: number) => call('cash:get', id),
+    printZ: (id: number) => call('cash:printZ', id)
+  },
+  cheques: {
+    list: () => call('cheques:list'),
+    create: (c: ChequeInput) => call('cheques:create', c),
+    update: (id: number, c: ChequeInput) => call('cheques:update', id, c),
+    setStatus: (ids: number[], status: ChequeStatus, date: string) => call('cheques:setStatus', ids, status, date),
+    delete: (id: number) => call('cheques:delete', id)
   },
   dashboard: {
     today: () => call('dashboard:today'),

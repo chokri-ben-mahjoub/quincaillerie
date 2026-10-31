@@ -25,7 +25,10 @@ export function registerSettingsHandlers(): void {
         allowSaleEdit: currentUser()?.role !== 'caissier' || s.sales_allow_edit === '1',
         autoPrintTicket: s.print_ticket_auto === '1', whatsappEnabled: s.share_whatsapp_enabled === '1', emailEnabled: s.share_email_enabled === '1',
         expenseMethods: s.expenses_methods.split(',').filter(Boolean), expenseDefaultMethod: s.expenses_default_method,
-        expenseCashEnabled: s.expenses_cash_enabled === '1', expenseRequireAttachment: s.expenses_require_attachment === '1'
+        expenseCashEnabled: s.expenses_cash_enabled === '1', expenseRequireAttachment: s.expenses_require_attachment === '1',
+        cashSessionRequired: s.cash_session_required === '1', cashDefaultFloat: Number(s.cash_default_float) || 0, cashGapTolerance: Number(s.cash_gap_tolerance) || 0,
+        cashDenominations: s.cash_denominations.split(',').map(Number).filter((n) => n > 0).sort((a, b) => b - a),
+        cashBlindCount: s.cash_blind_count === '1', chequeBanks: s.cheques_banks.split(',').map((b) => b.trim()).filter(Boolean)
       } }
     } catch (e: any) { return { ok: false, error: String(e?.message ?? e) } }
   })

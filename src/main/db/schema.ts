@@ -595,5 +595,126 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX idx_expenses_date     ON expenses(expense_date);
   CREATE INDEX idx_expenses_paid     ON expenses(paid_date);
   CREATE INDEX idx_expenses_category ON expenses(category_id);
+  `,
+
+  /* ---------- Version 13 : clôture de caisse, chèques et traites ---------- */
+  `
+  -- Session de caisse : ouverte avec un fond, clôturée avec le comptage des espèces. Une seule ouverte à la fois.
+  CREATE TABLE cash_sessions (
+    id            INTEGER PRIMARY KEY,
+    status        TEXT NOT NULL DEFAULT 'ouverte' CHECK (status IN ('ouverte','cloturee')),
+    opened_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    opened_by     INTEGER REFERENCES users(id),
+    opening_float INTEGER NOT NULL DEFAULT 0 CHECK (opening_float >= 0), -- millimes
+    closed_at     TEXT,
+    closed_by     INTEGER REFERENCES users(id),
+    expected      INTEGER,  -- espèces attendues (calculées)
+    counted       INTEGER,  -- espèces comptées
+    gap           INTEGER,  -- compté - attendu
+    counts        TEXT,     -- JSON { "valeur": nombre } du comptage par billet / pièce
+    summary       TEXT,     -- JSON : détail du calcul figé à la clôture (réimpression du ticket Z)
+    note          TEXT
+  );
+  CREATE UNIQUE INDEX idx_cash_one_open ON cash_sessions(status) WHERE status = 'ouverte';
+  CREATE TRIGGER trg_cash_closed_locked BEFORE UPDATE ON cash_sessions WHEN OLD.status = 'cloturee'
+  BEGIN SELECT RAISE(ABORT, 'Caisse clôturée : elle ne peut plus être modifiée.'); END;
+  CREATE TRIGGER trg_cash_no_delete BEFORE DELETE ON cash_sessions
+  BEGIN SELECT RAISE(ABORT, 'Une session de caisse ne peut pas être supprimée.'); END;
+
+  -- Apports (monnaie ajoutée) et retraits (argent mis au coffre, versé à la banque) pendant la session.
+  CREATE TABLE cash_movements (
+    id         INTEGER PRIMARY KEY,
+    session_id INTEGER NOT NULL REFERENCES cash_sessions(id),
+    type       TEXT NOT NULL CHECK (type IN ('apport','retrait')),
+    amount     INTEGER NOT NULL CHECK (amount > 0),
+    reason     TEXT NOT NULL,
+    user_id    INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+  CREATE TRIGGER trg_cash_movement_open BEFORE INSERT ON cash_movements
+  WHEN (SELECT status FROM cash_sessions WHERE id = NEW.session_id) IS NOT 'ouverte'
+  BEGIN SELECT RAISE(ABORT, 'La caisse n''est pas ouverte.'); END;
+
+  -- Dépense payée avec l'argent de la caisse : rattachée à la session ouverte à ce moment-là.
+  ALTER TABLE expenses ADD COLUMN cash_session_id INTEGER REFERENCES cash_sessions(id);
+  CREATE TRIGGER trg_expense_cash_session_ins AFTER INSERT ON expenses
+  WHEN NEW.from_cash = 1 AND NEW.status = 'payee' AND NEW.cash_session_id IS NULL
+  BEGIN UPDATE expenses SET cash_session_id = (SELECT id FROM cash_sessions WHERE status = 'ouverte') WHERE id = NEW.id; END;
+  CREATE TRIGGER trg_expense_cash_session_upd AFTER UPDATE OF status, from_cash ON expenses
+  WHEN NEW.from_cash = 1 AND NEW.status = 'payee' AND NEW.cash_session_id IS NULL
+  BEGIN UPDATE expenses SET cash_session_id = (SELECT id FROM cash_sessions WHERE status = 'ouverte') WHERE id = NEW.id; END;
+
+  -- Chèques et traites, reçus (clients) ou émis (fournisseurs, charges).
+  CREATE TABLE cheques (
+    id          INTEGER PRIMARY KEY,
+    direction   TEXT NOT NULL CHECK (direction IN ('recu','emis')),
+    kind        TEXT NOT NULL DEFAULT 'cheque' CHECK (kind IN ('cheque','traite')),
+    number      TEXT NOT NULL DEFAULT '',
+    bank        TEXT NOT NULL DEFAULT '',
+    holder      TEXT NOT NULL DEFAULT '',  -- tireur (reçu) ou bénéficiaire (émis)
+    client_id   INTEGER REFERENCES clients(id),
+    supplier_id INTEGER REFERENCES suppliers(id),
+    amount      INTEGER NOT NULL CHECK (amount > 0), -- millimes
+    issue_date  TEXT NOT NULL,             -- date de réception / d'émission
+    due_date    TEXT NOT NULL,             -- date d'encaissement possible / échéance de la traite
+    status      TEXT NOT NULL,
+    status_date TEXT,
+    ref_type    TEXT,                      -- sale, invoice_payment, expense
+    ref_id      INTEGER,
+    note        TEXT,
+    user_id     INTEGER REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    CHECK ((direction = 'recu' AND status IN ('portefeuille','remis','encaisse','impaye','annule'))
+        OR (direction = 'emis' AND status IN ('emis','debite','impaye','annule')))
+  );
+  CREATE INDEX idx_cheques_due ON cheques(direction, status, due_date);
+  CREATE INDEX idx_cheques_ref ON cheques(ref_type, ref_id);
+
+  -- Saisie automatique (Paramètres : « cheques_auto_capture ») : chaque paiement par chèque crée sa ligne,
+  -- à compléter ensuite (n°, banque, date d'encaissement) dans l'écran Chèques.
+  CREATE TRIGGER trg_cheque_from_sale AFTER INSERT ON sales
+  WHEN NEW.method = 'cheque' AND COALESCE((SELECT value FROM settings WHERE key = 'cheques_auto_capture'), '1') = '1'
+  BEGIN
+    INSERT INTO cheques(direction, holder, client_id, amount, issue_date, due_date, status, ref_type, ref_id, user_id)
+    VALUES ('recu', COALESCE((SELECT name FROM clients WHERE id = NEW.client_id), ''), NEW.client_id, NEW.total,
+            date(NEW.created_at), date(NEW.created_at), 'portefeuille', 'sale', NEW.id, NEW.user_id);
+  END;
+  CREATE TRIGGER trg_cheque_sale_cancel AFTER UPDATE OF status ON sales
+  WHEN NEW.status = 'annulee' AND OLD.status <> 'annulee'
+  BEGIN
+    UPDATE cheques SET status = 'annule', status_date = date('now','localtime'), updated_at = datetime('now','localtime')
+    WHERE ref_type = 'sale' AND ref_id = NEW.id AND status = 'portefeuille';
+  END;
+  CREATE TRIGGER trg_cheque_from_invoice AFTER INSERT ON invoice_payments
+  WHEN NEW.method IN ('Chèque','Traite') AND COALESCE((SELECT value FROM settings WHERE key = 'cheques_auto_capture'), '1') = '1'
+  BEGIN
+    INSERT INTO cheques(direction, kind, number, holder, client_id, amount, issue_date, due_date, status, ref_type, ref_id, user_id)
+    SELECT 'recu', CASE NEW.method WHEN 'Traite' THEN 'traite' ELSE 'cheque' END, NEW.reference, i.client_name, i.client_id,
+           NEW.amount, NEW.pay_date, NEW.pay_date, 'portefeuille', 'invoice_payment', NEW.id, NEW.user_id
+    FROM invoices i WHERE i.id = NEW.invoice_id;
+  END;
+  CREATE TRIGGER trg_cheque_invoice_unpay AFTER DELETE ON invoice_payments
+  BEGIN
+    UPDATE cheques SET status = 'annule', status_date = date('now','localtime'), updated_at = datetime('now','localtime')
+    WHERE ref_type = 'invoice_payment' AND ref_id = OLD.id AND status = 'portefeuille';
+  END;
+  CREATE TRIGGER trg_cheque_from_expense_ins AFTER INSERT ON expenses
+  WHEN NEW.status = 'payee' AND NEW.method = 'cheque' AND COALESCE((SELECT value FROM settings WHERE key = 'cheques_auto_capture'), '1') = '1'
+  BEGIN
+    INSERT INTO cheques(direction, holder, amount, issue_date, due_date, status, ref_type, ref_id, user_id)
+    VALUES ('emis', COALESCE(NEW.payee, NEW.label), NEW.amount, NEW.paid_date, NEW.paid_date, 'emis', 'expense', NEW.id, NEW.user_id);
+  END;
+  CREATE TRIGGER trg_cheque_from_expense_pay AFTER UPDATE OF status ON expenses
+  WHEN NEW.status = 'payee' AND OLD.status = 'a_payer' AND NEW.method = 'cheque' AND COALESCE((SELECT value FROM settings WHERE key = 'cheques_auto_capture'), '1') = '1'
+  BEGIN
+    INSERT INTO cheques(direction, holder, amount, issue_date, due_date, status, ref_type, ref_id, user_id)
+    VALUES ('emis', COALESCE(NEW.payee, NEW.label), NEW.amount, NEW.paid_date, NEW.paid_date, 'emis', 'expense', NEW.id, NEW.user_id);
+  END;
+  CREATE TRIGGER trg_cheque_expense_delete AFTER DELETE ON expenses
+  BEGIN
+    UPDATE cheques SET status = 'annule', status_date = date('now','localtime'), updated_at = datetime('now','localtime')
+    WHERE ref_type = 'expense' AND ref_id = OLD.id AND status = 'emis';
+  END;
   `
 ]
