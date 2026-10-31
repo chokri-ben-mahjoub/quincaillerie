@@ -4,7 +4,8 @@ const tones = {
   neutral: 'bg-muted text-muted-foreground',
   success: 'bg-success/12 text-success',
   warning: 'bg-warning/15 text-warning',
-  danger: 'bg-destructive/12 text-destructive'
+  danger: 'bg-destructive/12 text-destructive',
+  primary: 'bg-primary/12 text-primary'
 }
 
 export const Badge = ({ tone = 'neutral', className, ...props }: React.HTMLAttributes<HTMLSpanElement> & { tone?: keyof typeof tones }) => (

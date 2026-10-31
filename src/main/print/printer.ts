@@ -45,7 +45,7 @@ export async function printHtml(html: string, format: PrintFormat): Promise<bool
         if (success) return resolve(true)
         if (/cancel/i.test(reason)) return resolve(false)
         reject(new Error(deviceName && /device|printer/i.test(reason)
-          ? `Imprimante « ${deviceName} » introuvable ou indisponible. Vérifiez Paramètres > Impression.`
+          ? `Imprimante « ${deviceName} » introuvable ou indisponible. Vérifiez qu’elle est allumée et branchée, puis Paramètres > Impression > Détecter.`
           : `Échec de l'impression : ${reason}`))
       })
     })

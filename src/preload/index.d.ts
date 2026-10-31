@@ -1,5 +1,6 @@
 import type { ShareDraft, ShareRequest } from '@shared/share'
 import type { DashboardData, NavBadges } from '@shared/dashboard'
+import type { PrinterDetection } from '@shared/printers'
 import type { ArticleEvent, AuditEntry, Lot, LotDetail, PendingReception, ReceiveInput, TrackedArticle, TrackingMode } from '@shared/trace'
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
@@ -90,6 +91,7 @@ declare global {
       }
       print: {
         printers: () => Promise<Result<{ name: string; isDefault: boolean }[]>>
+        detect: () => Promise<Result<PrinterDetection>>
         test: (format: 'a4' | 'ticket') => Promise<Result<boolean>>
       }
       share: {

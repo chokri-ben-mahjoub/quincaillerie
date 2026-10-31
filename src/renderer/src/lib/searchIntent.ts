@@ -12,3 +12,12 @@ export function takeSearchIntent(gridId: string): string | null {
   setTimeout(() => { pending = null }, 0) // effacée après l'affichage (React peut lire deux fois en développement)
   return q
 }
+
+// Onglet des Paramètres à ouvrir (ex. « Impression » depuis l'accueil).
+let pendingTab: string | null = null
+export const openSettingsTab = (tab: string): void => { pendingTab = tab }
+export function takeSettingsTab(): string | null {
+  const t = pendingTab
+  setTimeout(() => { pendingTab = null }, 0)
+  return t
+}

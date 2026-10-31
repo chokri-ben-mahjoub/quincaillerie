@@ -6,6 +6,8 @@ import { cn, formatMoney } from '@/lib/utils'
 import type { PageId } from '@/components/Sidebar'
 import { PAY_LABELS, type User } from '@shared/types'
 import type { DashboardData } from '@shared/dashboard'
+import type { PrinterDetection } from '@shared/printers'
+import { openSettingsTab } from '@/lib/searchIntent'
 
 const ORANGE = 'hsl(24 95% 53%)'
 const SLATE = 'hsl(220 10% 60%)'
@@ -13,9 +15,23 @@ const AXIS = { fontSize: 12, fill: 'hsl(var(--muted-foreground))' }
 const REFRESH_MS = 60_000
 
 type Tone = 'danger' | 'warning' | 'neutral'
-interface Todo { key: string; tone: Tone; text: string; detail?: string; page: PageId }
+interface Todo { key: string; tone: Tone; text: string; detail?: string; page: PageId; tab?: string }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
+
+/** Imprimantes : celles enregistrées doivent être branchées ; une imprimante de tickets détectée mais pas réglée est signalée. */
+function printerTodos(p: PrinterDetection | null): Todo[] {
+  if (!p) return []
+  const t: Todo[] = []
+  const go = { page: 'parametres' as PageId, tab: 'impression' }
+  if (p.ticket.configured && !p.ticket.found) t.push({ key: 'pr-ticket', tone: 'danger', ...go, text: 'Imprimante de tickets introuvable',
+    detail: `« ${p.ticket.configured} » n’est pas branchée ou plus installée sur ce poste` })
+  if (p.a4.configured && !p.a4.found) t.push({ key: 'pr-a4', tone: 'danger', ...go, text: 'Imprimante A4 introuvable',
+    detail: `« ${p.a4.configured} » n’est pas branchée ou plus installée sur ce poste` })
+  if (!p.ticket.configured && p.ticket.suggestion) t.push({ key: 'pr-new', tone: 'neutral', ...go, text: 'Imprimante de tickets détectée',
+    detail: `${p.ticket.suggestion} : à choisir dans Paramètres › Impression` })
+  return t
+}
 
 /** Ce qui demande une action aujourd'hui, du plus urgent au moins urgent. */
 function todos(d: DashboardData): Todo[] {
@@ -42,6 +58,7 @@ export default function AccueilPage({ user, onNavigate }: { user: User; onNaviga
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(false)
   const [updatedAt, setUpdatedAt] = useState('')
+  const [printers, setPrinters] = useState<PrinterDetection | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -54,12 +71,17 @@ export default function AccueilPage({ user, onNavigate }: { user: User; onNaviga
     const t = setInterval(load, REFRESH_MS) // la page reste à jour si elle reste ouverte au comptoir
     return () => clearInterval(t)
   }, [load])
+  // Imprimantes vérifiées une fois à l'ouverture (réglage réservé à l'administrateur).
+  useEffect(() => {
+    if (user.role === 'admin') window.api.print.detect().then((r) => r.ok && setPrinters(r.data))
+  }, [user.role])
 
   const firstName = user.fullName.trim().split(/\s+/)[0]
   const hour = new Date().getHours()
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-  const list = data ? todos(data) : []
-  const hasTodoSources = !!data && (data.stock || data.invoices || data.clients || data.lots)
+  const printerList = printerTodos(printers)
+  const list = data ? [...printerList.filter((x) => x.tone === 'danger'), ...todos(data), ...printerList.filter((x) => x.tone !== 'danger')] : []
+  const hasTodoSources = !!data && (data.stock || data.invoices || data.clients || data.lots || printerList.length > 0)
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 p-8">
@@ -85,7 +107,7 @@ export default function AccueilPage({ user, onNavigate }: { user: User; onNaviga
                 <ul className="-mx-3 mt-3 divide-y">
                   {list.map((t) => (
                     <li key={t.key}>
-                      <button onClick={() => onNavigate(t.page)}
+                      <button onClick={() => { if (t.tab) openSettingsTab(t.tab); onNavigate(t.page) }}
                         className="group flex w-full items-start gap-3 rounded-md px-3 py-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <span className={cn('mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full', DOT[t.tone])} />
                         <span className="min-w-0 flex-1">

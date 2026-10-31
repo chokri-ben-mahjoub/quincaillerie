@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Database, DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Warehouse, X } from 'lucide-react'
+import { CheckCircle2, Database, DatabaseBackup, FolderOpen, ListChecks, ShieldCheck, Printer, Receipt, RefreshCw, Share2, Building2, FileText, ImagePlus, Percent, Plus, ShoppingCart, Trash2, Wand2, Warehouse, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
@@ -9,6 +9,8 @@ import { PAY_LABELS, type PayMethod } from '@shared/types'
 import { PERMISSIONS } from '@shared/permissions'
 import BackupPanel from '@/components/BackupPanel'
 import type { DemoReport, DemoStats } from '@shared/demo'
+import { KIND_LABELS, LINK_LABELS, STATE_LABELS, type PrinterDetection } from '@shared/printers'
+import { takeSettingsTab } from '@/lib/searchIntent'
 
 // ---------- Organisation en onglets ----------
 const TABS = [
@@ -390,14 +392,39 @@ function PrinterSelect({ value, onChange, printers }: { value: string; onChange:
 }
 
 function ImpressionTab({ v, set }: TabProps) {
-  const [printers, setPrinters] = useState<{ name: string; isDefault: boolean }[]>([])
+  const [det, setDet] = useState<PrinterDetection | null>(null)
+  const [scanning, setScanning] = useState(false)
   const [msg, setMsg] = useState('')
-  useEffect(() => { window.api.print.printers().then((r) => r.ok && setPrinters(r.data)) }, [])
+  const printers = det?.printers ?? []
+
+  const scan = useCallback(async () => {
+    setScanning(true)
+    const r = await window.api.print.detect()
+    setScanning(false)
+    if (r.ok) setDet(r.data); else setMsg(r.error)
+  }, [])
+  useEffect(() => { scan() }, [scan])
 
   async function test(format: 'a4' | 'ticket') {
     setMsg('')
     const r = await window.api.print.test(format) // utilise les réglages ENREGISTRÉS
     setMsg(r.ok ? (r.data ? 'Page de test envoyée à l’imprimante.' : 'Impression annulée.') : r.error)
+  }
+
+  // Configuration proposée par la détection, appliquée au brouillon (il reste à enregistrer).
+  const suggestion = det && {
+    ticket: det.ticket.suggestion, a4: det.a4.suggestion,
+    paper: det.ticket.paperMm ? String(det.ticket.paperMm) : v.print_ticket_paper
+  }
+  const differs = !!suggestion && (suggestion.ticket !== v.print_ticket_printer || suggestion.a4 !== v.print_a4_printer || suggestion.paper !== v.print_ticket_paper)
+  function applySuggestion() {
+    if (!suggestion) return
+    set('print_ticket_printer', suggestion.ticket); set('print_a4_printer', suggestion.a4); set('print_ticket_paper', suggestion.paper)
+    setMsg('Configuration appliquée : cliquez sur « Enregistrer » pour la garder, puis faites une page de test.')
+  }
+  const useFor = (name: string, usage: 'ticket' | 'a4', paperMm: number | null) => {
+    set(usage === 'ticket' ? 'print_ticket_printer' : 'print_a4_printer', name)
+    if (usage === 'ticket' && paperMm) set('print_ticket_paper', String(paperMm))
   }
 
   const block = (prefix: 'print_a4_' | 'print_ticket_', title: string, hint: string, fmt: 'a4' | 'ticket') => (
@@ -427,7 +454,65 @@ function ImpressionTab({ v, set }: TabProps) {
   return (
     <div className="space-y-6">
       {msg && <p className="rounded-md bg-muted px-3 py-2 text-sm">{msg}</p>}
-      {printers.length === 0 && <p className="rounded-md bg-warning/15 px-3 py-2 text-sm text-warning">Aucune imprimante détectée sur ce poste.</p>}
+
+      <Card title="Imprimantes de ce poste" hint="Imprimantes déjà installées sur cet ordinateur, détectées automatiquement avec leur branchement et leur état.">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={scan} disabled={scanning}>
+            <RefreshCw className={cn('h-4 w-4', scanning && 'animate-spin')} />{scanning ? 'Détection…' : 'Détecter à nouveau'}
+          </Button>
+          {differs && <Button size="sm" onClick={applySuggestion}><Wand2 className="h-4 w-4" />Configurer automatiquement</Button>}
+          {det && !differs && printers.length > 0 && <span className="flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="h-4 w-4" />Réglages cohérents avec les imprimantes détectées</span>}
+        </div>
+
+        {det && v.print_ticket_printer && !printers.some((p) => p.name === v.print_ticket_printer) && (
+          <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            L’imprimante de tickets « {v.print_ticket_printer} » n’est plus installée ou n’est pas branchée sur ce poste.
+          </p>
+        )}
+        {det && v.print_a4_printer && !printers.some((p) => p.name === v.print_a4_printer) && (
+          <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            L’imprimante A4 « {v.print_a4_printer} » n’est plus installée ou n’est pas branchée sur ce poste.
+          </p>
+        )}
+
+        {det && printers.length === 0 && (
+          <p className="rounded-md bg-warning/15 px-3 py-2 text-sm text-warning">
+            Aucune imprimante installée sur ce poste. Branchez l’imprimante, installez son pilote dans Windows (Paramètres › Bluetooth et appareils › Imprimantes), puis cliquez sur « Détecter à nouveau ».
+          </p>
+        )}
+
+        <ul className="divide-y rounded-lg border">
+          {printers.map((p) => {
+            const usedTicket = v.print_ticket_printer === p.name
+            const usedA4 = v.print_a4_printer === p.name || (!v.print_a4_printer && p.isDefault)
+            const Icon = p.kind === 'ticket' ? Receipt : p.kind === 'virtuelle' ? FileText : Printer
+            return (
+              <li key={p.name} className={cn('flex items-center gap-4 px-4 py-3', p.kind === 'virtuelle' && 'opacity-70')}>
+                <Icon className={cn('h-5 w-5 shrink-0', p.kind === 'ticket' ? 'text-primary' : 'text-muted-foreground')} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 font-medium">{p.displayName}</span>
+                    <Badge tone={p.state === 'prete' ? 'success' : p.state === 'inconnu' ? 'neutral' : p.state === 'pause' || p.state === 'papier' ? 'warning' : 'danger'}>{STATE_LABELS[p.state]}</Badge>
+                    {p.isDefault && <Badge>Par défaut Windows</Badge>}
+                    {usedTicket && <Badge tone="primary">Utilisée pour les tickets</Badge>}
+                    {usedA4 && p.kind !== 'virtuelle' && <Badge tone="primary">Utilisée pour l’A4</Badge>}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {[KIND_LABELS[p.kind] + (p.paperMm ? ` ${p.paperMm} mm` : ''), LINK_LABELS[p.link] + (p.port && p.link !== 'virtuelle' ? ` (${p.port})` : ''), p.driver && p.driver !== p.displayName ? p.driver : null]
+                      .filter(Boolean).join(', ')}
+                  </div>
+                </div>
+                {p.kind === 'ticket' && !usedTicket && <Button size="sm" variant="outline" onClick={() => useFor(p.name, 'ticket', p.paperMm)}>Utiliser pour les tickets</Button>}
+                {p.kind === 'a4' && !usedA4 && <Button size="sm" variant="outline" onClick={() => useFor(p.name, 'a4', null)}>Utiliser pour l’A4</Button>}
+              </li>
+            )
+          })}
+        </ul>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Le type (ticket ou A4) est déduit du nom et du pilote. Une imprimante éteinte peut quand même apparaître « Prête » : Windows ne le sait pas toujours, d’où la page de test.
+        </p>
+      </Card>
+
       {block('print_a4_', 'Documents A4', 'Factures, devis, bons de commande et de livraison (bouton Imprimer). L’aperçu PDF garde la pagination « Page x / y ».', 'a4')}
       {block('print_ticket_', 'Ticket de caisse', 'Imprimante thermique du comptoir.', 'ticket')}
       <p className="text-sm text-muted-foreground">Le bouton « Page de test » utilise les réglages enregistrés : enregistrez d’abord vos modifications.</p>
@@ -740,7 +825,7 @@ function DonneesTab() {
 
 // ---------- Page ----------
 export default function SettingsPage() {
-  const [tab, setTab] = useState<TabId>('societe')
+  const [tab, setTab] = useState<TabId>(() => (takeSettingsTab() as TabId | null) ?? 'societe') // onglet demandé depuis l'accueil
   const [saved, setSaved] = useState<SettingsMap | null>(null)
   const [draft, setDraft] = useState<SettingsMap>({})
   const [error, setError] = useState('')

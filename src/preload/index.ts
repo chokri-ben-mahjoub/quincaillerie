@@ -87,6 +87,7 @@ const api = {
   },
   print: {
     printers: () => call('print:printers'),
+    detect: () => call('print:detect'),
     test: (format: 'a4' | 'ticket') => call('print:test', format)
   },
   share: {
