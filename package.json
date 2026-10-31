@@ -1,6 +1,6 @@
 {
   "name": "quincaillerie",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Gestion de quincaillerie - application de bureau 100 % locale",
   "main": "./out/main/index.js",
   "author": "APBS",
@@ -58,7 +58,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "npmRebuild": false,
     "artifactName": "Quincaillerie-Setup-${version}.exe",
@@ -66,7 +67,20 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "language": "1036"
+      "language": "1036",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Quincaillerie",
+      "uninstallDisplayName": "Quincaillerie",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "copyright": "Copyright © 2026 APBS",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
     }
   }
 }
