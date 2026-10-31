@@ -535,5 +535,11 @@ export const MIGRATIONS: string[] = [
   BEGIN SELECT RAISE(ABORT, 'Journal d''audit : modification impossible.'); END;
   CREATE TRIGGER trg_audit_locked_delete BEFORE DELETE ON audit_log
   BEGIN SELECT RAISE(ABORT, 'Journal d''audit : suppression impossible.'); END;
+  `,
+
+  /* ---------- Version 11 : profil utilisateur (photo) et préférences d'affichage ---------- */
+  `
+  ALTER TABLE users ADD COLUMN avatar TEXT; -- photo de profil (data URL, réduite à 256 px par l'interface)
+  ALTER TABLE users ADD COLUMN prefs TEXT;  -- préférences d'affichage propres à l'utilisateur (JSON)
   `
 ]

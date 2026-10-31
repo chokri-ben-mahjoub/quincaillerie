@@ -4,7 +4,7 @@ import type { ArticleEvent, AuditEntry, Lot, LotDetail, PendingReception, Receiv
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
 import type { CompanyInfo, Invoice, InvoiceInput, InvoicePayment, InvoicePaymentInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
-import type { ClientStatement, SaleDetail, SaleSummary, BackupConfig, BackupInfo, AuthStatus, User, UserInput, ReportData, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
+import type { ClientStatement, SaleDetail, SaleSummary, BackupConfig, BackupInfo, AuthStatus, User, UserInput, ProfileInput, ReportData, ReportOptions, Client, ClientInput, Article, ArticleInput, Category, ImportReport, MovementInput, Purchase, PurchaseInput, Receipt, Result, Supplier, SupplierInput, SaleInput, StockMovement } from '@shared/types'
 
 // Typage de window.api côté interface.
 declare global {
@@ -121,7 +121,7 @@ declare global {
         update: (id: number, u: UserInput) => Promise<Result<void>>
       }
       reports: {
-        get: (from: string, to: string) => Promise<Result<ReportData>>
+        get: (from: string, to: string, options?: ReportOptions) => Promise<Result<ReportData>>
       }
       trace: {
         articles: () => Promise<Result<TrackedArticle[]>>
@@ -135,6 +135,11 @@ declare global {
       }
       audit: {
         list: (from: string, to: string) => Promise<Result<AuditEntry[]>>
+      }
+      profile: {
+        update: (p: ProfileInput) => Promise<Result<User>>
+        getPrefs: <T = unknown>(key: string) => Promise<Result<T | null>>
+        setPrefs: (key: string, value: unknown) => Promise<Result<void>>
       }
       dashboard: {
         today: () => Promise<Result<DashboardData>>

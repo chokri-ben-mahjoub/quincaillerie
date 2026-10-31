@@ -157,6 +157,15 @@ export interface User {
   fullName: string
   role: Role
   active: boolean
+  avatar?: string | null // photo de profil (data URL)
+}
+
+/** Modification de son propre profil. Le mot de passe actuel est exigé pour en choisir un nouveau. */
+export interface ProfileInput {
+  fullName: string
+  avatar: string | null
+  currentPassword?: string
+  newPassword?: string
 }
 export interface UserInput {
   username: string
@@ -197,7 +206,15 @@ export interface ReportData {
   daily: { day: string; revenue: number; margin: number }[]
   byMethod: { method: string; total: number }[]
   byCategory: { name: string; total: number }[]
-  topArticles: { designation: string; quantity: number; total: number }[]
+  topArticles: { designation: string; quantity: number; total: number; margin: number }[]
+  /** Même durée juste avant la période, pour comparer. */
+  previous: { from: string; to: string; revenue: number; grossMargin: number; salesCount: number; avgBasket: number }
+}
+
+export type TopArticlesBy = 'total' | 'quantity' | 'margin'
+export interface ReportOptions {
+  topCount?: number // 5 à 50
+  topBy?: TopArticlesBy
 }
 
 /** Ticket de caisse imprimable : le reçu de la vente + le caissier. */

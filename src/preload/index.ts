@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { InvoiceInput, InvoicePaymentInput } from '@shared/invoice'
-import type { ArticleInput, MovementInput, SaleInput, PurchaseInput, SupplierInput, ClientInput, UserInput } from '@shared/types'
+import type { ArticleInput, MovementInput, SaleInput, PurchaseInput, SupplierInput, ClientInput, UserInput, ProfileInput, ReportOptions } from '@shared/types'
 import type { ReceiveInput, TrackingMode } from '@shared/trace'
 
 // Pont sécurisé : seules ces fonctions sont exposées à l'interface (window.api).
@@ -118,7 +118,7 @@ const api = {
     update: (id: number, u: UserInput) => call('users:update', id, u)
   },
   reports: {
-    get: (from: string, to: string) => call('reports:get', from, to)
+    get: (from: string, to: string, options?: ReportOptions) => call('reports:get', from, to, options)
   },
   trace: {
     articles: () => call('trace:articles'),
@@ -132,6 +132,11 @@ const api = {
   },
   audit: {
     list: (from: string, to: string) => call('audit:list', from, to)
+  },
+  profile: {
+    update: (p: ProfileInput) => call('profile:update', p),
+    getPrefs: (key: string) => call('profile:getPrefs', key),
+    setPrefs: (key: string, value: unknown) => call('profile:setPrefs', key, value)
   },
   dashboard: {
     today: () => call('dashboard:today'),

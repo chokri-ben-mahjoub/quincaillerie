@@ -3,7 +3,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { getDb } from '../db'
 import { getSettings } from '../settings'
 import { channelGranted } from '@shared/permissions'
-import type { AuthStatus, Result, Role, User, UserInput } from '@shared/types'
+import type { AuthStatus, ProfileInput, Result, Role, User, UserInput } from '@shared/types'
 
 // Utilisateur connecté (session tenue côté principal : l'interface ne peut pas la falsifier).
 let current: User | null = null
@@ -22,7 +22,7 @@ function checkPassword(pw: string, stored: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
-const mapUser = (r: any): User => ({ id: r.id, username: r.username, fullName: r.full_name, role: r.role, active: !!r.active })
+const mapUser = (r: any): User => ({ id: r.id, username: r.username, fullName: r.full_name, role: r.role, active: !!r.active, avatar: r.avatar ?? null })
 
 // ---- Droits par rôle (appliqués à chaque appel IPC, voir installGuard) ----
 /** Droits accordés à un rôle (Paramètres > Utilisateurs / droits). L'administrateur a toujours tout. */
@@ -37,6 +37,7 @@ export function isAllowed(channel: string): boolean {
   if (current.role === 'admin') return true
   if (channel === 'app:config') return true // configuration de l'interface : tout utilisateur connecté
   if (channel.startsWith('dashboard:')) return true // accueil : chaque section vérifie elle-même les droits
+  if (channel.startsWith('profile:')) return true // son propre profil : toujours
   if (/^(users|backup|settings|demo|audit):/.test(channel)) return false // réservés à l'administrateur
   return channelGranted(grantedPermissions(current.role), channel)
 }
@@ -44,14 +45,15 @@ export function isAllowed(channel: string): boolean {
 // ---- Journal d'audit : chaque action qui modifie quelque chose (et chaque refus d'accès) est enregistrée ----
 // Les simples lectures (listes, fiches, aperçus) ne sont pas journalisées.
 const READ_ACTIONS = new Set(['list', 'get', 'getAll', 'status', 'stats', 'statement', 'movements', 'payments', 'preview', 'config',
-  'printers', 'compose', 'pickDir', 'articles', 'lots', 'lot', 'pending', 'history', 'today', 'badges'])
+  'printers', 'compose', 'pickDir', 'articles', 'lots', 'lot', 'pending', 'history', 'today', 'badges', 'getPrefs'])
 const isRead = (channel: string): boolean => READ_ACTIONS.has(channel.split(':')[1] ?? '')
 
 /** Copie des arguments sans aucun mot de passe, tronquée pour rester lisible. */
 function auditDetails(channel: string, args: unknown[]): string | null {
   if (channel === 'auth:login') return JSON.stringify({ identifiant: String(args[0] ?? '') })
   if (!args.length) return null
-  const json = JSON.stringify(args.length === 1 ? args[0] : args, (k, v) => (/password|mot_de_passe/i.test(k) ? '***' : v))
+  const json = JSON.stringify(args.length === 1 ? args[0] : args, (k, v) =>
+    /password|mot_de_passe/i.test(k) ? '***' : /avatar|logo/i.test(k) && typeof v === 'string' && v ? '[image]' : v)
   return json && json.length > 2000 ? json.slice(0, 2000) + '…' : (json ?? null)
 }
 
@@ -159,5 +161,40 @@ export function registerAuthHandlers(): void {
       .run(u.username.trim(), u.fullName.trim(), u.role as Role, u.active ? 1 : 0, id)
     if (u.password) db().prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(u.password), id)
     if (id === current?.id) current = mapUser(db().prepare('SELECT * FROM users WHERE id = ?').get(id))
+  })
+
+  // ---- Mon profil : chacun modifie son nom, sa photo et son mot de passe ----
+  handle('profile:update', (p: ProfileInput) => {
+    if (!current) throw new Error('Non connecté.')
+    const fullName = String(p.fullName ?? '').trim()
+    if (!fullName) throw new Error('Le nom est obligatoire.')
+    const avatar = p.avatar ? String(p.avatar) : null
+    if (avatar && (!/^data:image\/(png|jpeg|webp);base64,/.test(avatar) || avatar.length > 400_000)) throw new Error('Image de profil invalide ou trop lourde.')
+    if (p.newPassword) {
+      const row = db().prepare('SELECT password_hash FROM users WHERE id = ?').get(current.id) as any
+      if (!checkPassword(String(p.currentPassword ?? ''), row.password_hash)) throw new Error('Mot de passe actuel incorrect.')
+      if (p.newPassword.length < 4) throw new Error('Nouveau mot de passe : 4 caractères minimum.')
+      db().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(p.newPassword), current.id)
+    }
+    db().prepare('UPDATE users SET full_name = ?, avatar = ? WHERE id = ?').run(fullName, avatar, current.id)
+    current = mapUser(db().prepare('SELECT * FROM users WHERE id = ?').get(current.id))
+    return current
+  })
+
+  // Préférences d'affichage de l'utilisateur connecté (ex. disposition des Rapports), rangées par clé.
+  const readPrefs = (): Record<string, unknown> => {
+    const raw = (db().prepare('SELECT prefs FROM users WHERE id = ?').get(current!.id) as any)?.prefs
+    try { return raw ? JSON.parse(raw) : {} } catch { return {} }
+  }
+  handle('profile:getPrefs', (key: string) => {
+    if (!current) throw new Error('Non connecté.')
+    return readPrefs()[key] ?? null
+  })
+  handle('profile:setPrefs', (key: string, value: unknown) => {
+    if (!current) throw new Error('Non connecté.')
+    const all = { ...readPrefs(), [key]: value }
+    const json = JSON.stringify(all)
+    if (json.length > 64_000) throw new Error('Préférences trop volumineuses.')
+    db().prepare('UPDATE users SET prefs = ? WHERE id = ?').run(json, current.id)
   })
 }

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import type { NavBadges } from '@shared/dashboard'
 import { cn } from '@/lib/utils'
+import { Avatar } from '@/components/Avatar'
 
 // Pages regroupées par métier : vendre, gérer la marchandise, piloter, administrer.
 export const NAV = [
@@ -42,12 +43,13 @@ interface Props {
   onToggleCollapsed: () => void
   onNavigate: (p: PageId) => void
   onSearch: () => void
+  onProfile: () => void
   onLogout: () => void
   dark: boolean
   onToggleTheme: () => void
 }
 
-export function Sidebar({ page, items, user, badges, collapsed, onToggleCollapsed, onNavigate, onSearch, onLogout, dark, onToggleTheme }: Props) {
+export function Sidebar({ page, items, user, badges, collapsed, onToggleCollapsed, onNavigate, onSearch, onProfile, onLogout, dark, onToggleTheme }: Props) {
   const groups = items.reduce<{ name: string; items: NavItem[] }[]>((acc, it) => {
     const last = acc[acc.length - 1]
     if (last && last.name === it.group) last.items.push(it)
@@ -118,15 +120,19 @@ export function Sidebar({ page, items, user, badges, collapsed, onToggleCollapse
           {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px] shrink-0" /> : <PanelLeftClose className="h-[18px] w-[18px] shrink-0" />}
           {!collapsed && 'Réduire le menu'}
         </button>
-        <div className={cn('mt-2 flex items-center rounded-md bg-white/5', collapsed ? 'flex-col gap-1 py-2' : 'gap-3 px-3 py-2.5')}>
-          {collapsed
-            ? <div title={`${user.fullName} (${ROLE_LABELS[user.role]})`} className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white">
-                {user.fullName.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
-              </div>
-            : <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-white">{user.fullName}</div>
-                <div className="text-xs text-slate-400">{ROLE_LABELS[user.role]}</div>
-              </div>}
+        <div className={cn('mt-2 flex items-center rounded-md bg-white/5', collapsed ? 'flex-col gap-1 py-2' : 'gap-1 py-1.5 pl-1.5 pr-1')}>
+          {/* Clic sur son nom ou sa photo : « Mon profil » */}
+          <button onClick={onProfile} title={collapsed ? `${user.fullName} (${ROLE_LABELS[user.role]}) : mon profil` : 'Mon profil'}
+            className={cn('flex min-w-0 items-center gap-3 rounded-md text-left hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+              collapsed ? 'p-1' : 'flex-1 p-1.5')}>
+            <Avatar name={user.fullName} src={user.avatar} className="h-9 w-9" />
+            {!collapsed && (
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-white">{user.fullName}</span>
+                <span className="block text-xs text-slate-400">{ROLE_LABELS[user.role]}</span>
+              </span>
+            )}
+          </button>
           <button onClick={onLogout} title="Se déconnecter" className="rounded-md p-2 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <LogOut className="h-4 w-4" />
           </button>

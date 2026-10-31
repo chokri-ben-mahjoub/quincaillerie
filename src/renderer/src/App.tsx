@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Construction } from 'lucide-react'
 import { NAV, Sidebar, type PageId } from '@/components/Sidebar'
 import { CommandPalette } from '@/components/CommandPalette'
+import { ProfileDialog } from '@/components/ProfileDialog'
 import AccueilPage from '@/pages/AccueilPage'
 import ArticlesPage from '@/pages/ArticlesPage'
 import StockPage from '@/pages/StockPage'
@@ -29,6 +30,7 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [badges, setBadges] = useState<NavBadges>({})
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [navKey, setNavKey] = useState(0) // change à chaque navigation par la recherche : la page se recharge filtrée
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === '1')
 
@@ -121,10 +123,11 @@ export default function App() {
   return (
     <div className="flex h-full">
       <Sidebar page={current} items={allowed} user={user} badges={badges} collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)}
-        onNavigate={setPage} onSearch={() => setPaletteOpen(true)} onLogout={logout} dark={dark} onToggleTheme={() => setDark((d) => !d)} />
+        onNavigate={setPage} onSearch={() => setPaletteOpen(true)} onProfile={() => setProfileOpen(true)} onLogout={logout} dark={dark} onToggleTheme={() => setDark((d) => !d)} />
       <main key={navKey} className="min-w-0 flex-1 overflow-auto">{pages[current]}</main>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} pages={allowed}
         onGo={(p) => { setPage(p); setNavKey((k) => k + 1) }} />
+      <ProfileDialog open={profileOpen} user={user} onClose={() => setProfileOpen(false)} onSaved={setUser} />
     </div>
   )
 }

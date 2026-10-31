@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input, Label, Select } from '@/components/ui/input'
 import { ROLE_LABELS, type Role, type User, type UserInput } from '@shared/types'
+import { Avatar } from '@/components/Avatar'
 
 const EMPTY: UserInput = { username: '', fullName: '', role: 'caissier', active: true, password: '' }
 
@@ -38,7 +39,7 @@ export default function UsersPage() {
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className="border-b last:border-0 hover:bg-muted/50">
-                <td className="px-4 py-3 font-medium">{u.fullName}</td>
+                <td className="px-4 py-3 font-medium"><span className="flex items-center gap-3"><Avatar name={u.fullName} src={u.avatar} />{u.fullName}</span></td>
                 <td className="px-4 py-3 font-mono text-[13px] text-muted-foreground">{u.username}</td>
                 <td className="px-4 py-3"><Badge>{ROLE_LABELS[u.role]}</Badge></td>
                 <td className="px-4 py-3">{u.active ? <Badge tone="success">Actif</Badge> : <Badge tone="danger">Désactivé</Badge>}</td>

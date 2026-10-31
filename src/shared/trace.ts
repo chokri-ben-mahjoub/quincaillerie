@@ -132,6 +132,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   'settings:set': 'Paramètres modifiés',
   'backup:now': 'Sauvegarde manuelle', 'backup:restore': 'Restauration de sauvegarde',
   'demo:generate': 'Données de démonstration générées', 'demo:reset': 'Remise à zéro de la base',
+  'profile:update': 'Profil modifié', 'profile:setPrefs': 'Préférences d’affichage modifiées',
   'trace:receive': 'Lots / n° de série saisis', 'trace:setTracking': 'Mode de suivi modifié', 'trace:reassign': 'Affectation de lot corrigée'
 }
 
