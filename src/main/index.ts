@@ -15,6 +15,7 @@ import { registerPrintHandlers } from './ipc/print'
 import { registerShareHandlers } from './ipc/share'
 import { registerDemoHandlers } from './ipc/demo'
 import { installGuard, registerAuthHandlers } from './ipc/auth'
+import { registerTraceHandlers } from './ipc/trace'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -59,6 +60,7 @@ app.whenReady().then(() => {
   registerPurchaseHandlers()
   registerClientHandlers()
   registerReportHandlers()
+  registerTraceHandlers()
   createWindow()
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow())
 })

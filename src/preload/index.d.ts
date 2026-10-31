@@ -1,4 +1,5 @@
 import type { ShareDraft, ShareRequest } from '@shared/share'
+import type { ArticleEvent, AuditEntry, Lot, LotDetail, PendingReception, ReceiveInput, TrackedArticle, TrackingMode } from '@shared/trace'
 import type { DemoOptions, DemoReport, DemoStats, ResetOptions } from '@shared/demo'
 import type { AppConfig, SettingsMap } from '@shared/settings'
 import type { CompanyInfo, Invoice, InvoiceInput, InvoicePayment, InvoicePaymentInput, InvoiceSummary, Delivery, DeliverySummary, Order, OrderSummary, Quote, QuoteSummary } from '@shared/invoice'
@@ -120,6 +121,19 @@ declare global {
       }
       reports: {
         get: (from: string, to: string) => Promise<Result<ReportData>>
+      }
+      trace: {
+        articles: () => Promise<Result<TrackedArticle[]>>
+        setTracking: (articleId: number, mode: TrackingMode) => Promise<Result<void>>
+        lots: () => Promise<Result<Lot[]>>
+        lot: (id: number) => Promise<Result<LotDetail>>
+        pending: () => Promise<Result<PendingReception[]>>
+        receive: (input: ReceiveInput) => Promise<Result<number>>
+        reassign: (lotMovementId: number, newLotId: number) => Promise<Result<void>>
+        history: (articleId: number) => Promise<Result<ArticleEvent[]>>
+      }
+      audit: {
+        list: (from: string, to: string) => Promise<Result<AuditEntry[]>>
       }
       clients: {
         list: () => Promise<Result<Client[]>>

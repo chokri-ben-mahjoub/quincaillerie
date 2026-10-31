@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { InvoiceInput, InvoicePaymentInput } from '@shared/invoice'
 import type { ArticleInput, MovementInput, SaleInput, PurchaseInput, SupplierInput, ClientInput, UserInput } from '@shared/types'
+import type { ReceiveInput, TrackingMode } from '@shared/trace'
 
 // Pont sécurisé : seules ces fonctions sont exposées à l'interface (window.api).
 const call = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args)
@@ -118,6 +119,19 @@ const api = {
   },
   reports: {
     get: (from: string, to: string) => call('reports:get', from, to)
+  },
+  trace: {
+    articles: () => call('trace:articles'),
+    setTracking: (articleId: number, mode: TrackingMode) => call('trace:setTracking', articleId, mode),
+    lots: () => call('trace:lots'),
+    lot: (id: number) => call('trace:lot', id),
+    pending: () => call('trace:pending'),
+    receive: (input: ReceiveInput) => call('trace:receive', input),
+    reassign: (lotMovementId: number, newLotId: number) => call('trace:reassign', lotMovementId, newLotId),
+    history: (articleId: number) => call('trace:history', articleId)
+  },
+  audit: {
+    list: (from: string, to: string) => call('audit:list', from, to)
   },
   clients: {
     list: () => call('clients:list'),

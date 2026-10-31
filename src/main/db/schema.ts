@@ -436,5 +436,104 @@ export const MIGRATIONS: string[] = [
       WHERE (SELECT COALESCE(SUM(amount), 0) FROM invoice_payments WHERE invoice_id = NEW.invoice_id) + NEW.amount
             > (SELECT total_ttc FROM invoices WHERE id = NEW.invoice_id);
   END;
+  `,
+
+  /* ---------- Version 10 : traçabilité (lots, numéros de série, journal d'audit) ---------- */
+  `
+  -- Mode de suivi de l'article : aucun, par lot (quantités) ou par numéro de série (1 unité = 1 numéro).
+  ALTER TABLE articles ADD COLUMN tracking TEXT NOT NULL DEFAULT 'aucun' CHECK (tracking IN ('aucun','lot','serie'));
+  ALTER TABLE articles ADD COLUMN tracking_since TEXT; -- date d'activation : seuls les achats suivants sont « à identifier »
+
+  -- Un lot (ou un numéro de série) = une quantité identifiée d'un article, avec son origine.
+  -- quantity_left est dérivée : seul le trigger trg_lot_movement_apply la modifie.
+  CREATE TABLE lots (
+    id            INTEGER PRIMARY KEY,
+    article_id    INTEGER NOT NULL REFERENCES articles(id),
+    code          TEXT NOT NULL COLLATE NOCASE,
+    kind          TEXT NOT NULL CHECK (kind IN ('lot','serie')),
+    supplier_id   INTEGER REFERENCES suppliers(id),
+    purchase_id   INTEGER REFERENCES purchases(id),
+    expiry_date   TEXT,                                 -- AAAA-MM-JJ (colles, mastics, peintures…)
+    quantity_in   REAL NOT NULL CHECK (quantity_in > 0),
+    quantity_left REAL NOT NULL DEFAULT 0 CHECK (quantity_left > -0.0005 AND quantity_left < quantity_in + 0.0005),
+    note          TEXT,
+    user_id       INTEGER REFERENCES users(id),
+    created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (article_id, code)
+  );
+  CREATE INDEX idx_lots_code    ON lots(code);
+  CREATE INDEX idx_lots_article ON lots(article_id, quantity_left);
+  CREATE INDEX idx_lots_purchase ON lots(purchase_id, article_id);
+
+  -- Journal des lots : chaque entrée/sortie d'un lot, rattachée au mouvement de stock qui l'a causée.
+  CREATE TABLE lot_movements (
+    id          INTEGER PRIMARY KEY,
+    lot_id      INTEGER NOT NULL REFERENCES lots(id),
+    movement_id INTEGER REFERENCES stock_movements(id), -- NULL : identification de stock existant
+    quantity    REAL NOT NULL CHECK (quantity <> 0),    -- signée : + entrée, - sortie
+    note        TEXT,
+    user_id     INTEGER REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+  CREATE INDEX idx_lotmov_lot      ON lot_movements(lot_id);
+  CREATE INDEX idx_lotmov_movement ON lot_movements(movement_id);
+
+  CREATE TRIGGER trg_lot_movement_apply AFTER INSERT ON lot_movements
+  BEGIN
+    UPDATE lots SET quantity_left = quantity_left + NEW.quantity WHERE id = NEW.lot_id;
+  END;
+  CREATE TRIGGER trg_lot_movements_locked_update BEFORE UPDATE ON lot_movements
+  BEGIN SELECT RAISE(ABORT, 'Journal des lots : modification impossible.'); END;
+  CREATE TRIGGER trg_lot_movements_locked_delete BEFORE DELETE ON lot_movements
+  BEGIN SELECT RAISE(ABORT, 'Journal des lots : suppression impossible.'); END;
+
+  -- Toute sortie d'un article suivi (vente, perte, retour fournisseur, ajustement -) puise automatiquement dans ses lots :
+  -- d'abord celui qui périme le plus tôt, puis le plus ancien (FEFO / FIFO). Aucun écran existant n'a besoin de changer.
+  CREATE TRIGGER trg_movement_lots_out AFTER INSERT ON stock_movements
+  WHEN NEW.quantity < 0 AND (SELECT tracking FROM articles WHERE id = NEW.article_id) <> 'aucun'
+  BEGIN
+    INSERT INTO lot_movements(lot_id, movement_id, quantity, user_id)
+    SELECT id, NEW.id, -MIN(quantity_left, -NEW.quantity - before), NEW.user_id
+    FROM (SELECT id, quantity_left,
+                 COALESCE(SUM(quantity_left) OVER (ORDER BY expiry_date IS NULL, expiry_date, id
+                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before
+          FROM lots WHERE article_id = NEW.article_id AND quantity_left > 0.0005)
+    WHERE before < -NEW.quantity - 0.0005;
+  END;
+
+  -- Annulation d'une vente : la marchandise retourne dans les lots mêmes d'où elle était sortie.
+  CREATE TRIGGER trg_movement_lots_return AFTER INSERT ON stock_movements
+  WHEN NEW.quantity > 0 AND NEW.type = 'retour_client' AND NEW.ref_type = 'sale'
+       AND (SELECT tracking FROM articles WHERE id = NEW.article_id) <> 'aucun'
+  BEGIN
+    INSERT INTO lot_movements(lot_id, movement_id, quantity, user_id)
+    SELECT lot_id, NEW.id, MIN(net, NEW.quantity - before), NEW.user_id
+    FROM (SELECT lot_id, net,
+                 COALESCE(SUM(net) OVER (ORDER BY lot_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before
+          FROM (SELECT lm.lot_id, -SUM(lm.quantity) AS net
+                FROM lot_movements lm JOIN stock_movements m ON m.id = lm.movement_id
+                WHERE m.ref_type = 'sale' AND m.ref_id = NEW.ref_id AND m.article_id = NEW.article_id
+                GROUP BY lm.lot_id HAVING net > 0.0005))
+    WHERE before < NEW.quantity - 0.0005;
+  END;
+
+  -- Journal d'audit : qui a fait quoi, quand. Rempli par le processus principal, jamais modifiable ni effaçable.
+  CREATE TABLE audit_log (
+    id         INTEGER PRIMARY KEY,
+    user_id    INTEGER,
+    user_name  TEXT NOT NULL DEFAULT '',
+    channel    TEXT NOT NULL,
+    details    TEXT,
+    result     TEXT,
+    ok         INTEGER NOT NULL,
+    error      TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+  CREATE INDEX idx_audit_date ON audit_log(created_at);
+  CREATE INDEX idx_audit_user ON audit_log(user_id, created_at);
+  CREATE TRIGGER trg_audit_locked_update BEFORE UPDATE ON audit_log
+  BEGIN SELECT RAISE(ABORT, 'Journal d''audit : modification impossible.'); END;
+  CREATE TRIGGER trg_audit_locked_delete BEFORE DELETE ON audit_log
+  BEGIN SELECT RAISE(ABORT, 'Journal d''audit : suppression impossible.'); END;
   `
 ]

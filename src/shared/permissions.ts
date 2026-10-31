@@ -22,7 +22,8 @@ export const PERMISSIONS: Permission[] = [
   { id: 'factures', label: 'Factures', hint: 'Création, validation, impression', channels: ['invoices:', ...DOC_COMMON] },
   { id: 'devis', label: 'Devis', hint: 'Création et conversion en facture', channels: ['quotes:', ...DOC_COMMON] },
   { id: 'commandes', label: 'Bons de commande', hint: 'Commandes fournisseurs', channels: ['orders:', ...DOC_COMMON] },
-  { id: 'livraisons', label: 'Bons de livraison', hint: 'Livraisons clients', channels: ['deliveries:', ...DOC_COMMON] }
+  { id: 'livraisons', label: 'Bons de livraison', hint: 'Livraisons clients', channels: ['deliveries:', ...DOC_COMMON] },
+  { id: 'tracabilite', label: 'Traçabilité', hint: 'Lots, n° de série, historique des articles', channels: ['trace:', 'articles:list'] }
 ]
 
 export const PERMISSION_IDS = PERMISSIONS.map((p) => p.id)

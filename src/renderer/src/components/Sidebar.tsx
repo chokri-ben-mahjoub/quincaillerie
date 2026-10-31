@@ -1,5 +1,5 @@
 import { ROLE_LABELS, type User } from '@shared/types'
-import { Settings, BarChart3, ClipboardCheck, ClipboardList, FileSignature, FileText, Hammer, LogOut, Moon, Package, ShoppingCart, Sun, Truck, Users, UserCog, Warehouse } from 'lucide-react'
+import { Settings, BarChart3, ScanSearch, ClipboardCheck, ClipboardList, FileSignature, FileText, Hammer, LogOut, Moon, Package, ShoppingCart, Sun, Truck, Users, UserCog, Warehouse } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export const NAV = [
@@ -13,6 +13,7 @@ export const NAV = [
   { id: 'achats', label: 'Achats', icon: Truck },
   { id: 'clients', label: 'Clients', icon: Users },
   { id: 'rapports', label: 'Rapports', icon: BarChart3 },
+  { id: 'tracabilite', label: 'Traçabilité', icon: ScanSearch },
   { id: 'utilisateurs', label: 'Utilisateurs', icon: UserCog },
   { id: 'parametres', label: 'Paramètres', icon: Settings }
 ] as const

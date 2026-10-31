@@ -36,15 +36,64 @@ export function isAllowed(channel: string): boolean {
   if (!current) return false
   if (current.role === 'admin') return true
   if (channel === 'app:config') return true // configuration de l'interface : tout utilisateur connecté
-  if (/^(users|backup|settings|demo):/.test(channel)) return false // réservés à l'administrateur
+  if (/^(users|backup|settings|demo|audit):/.test(channel)) return false // réservés à l'administrateur
   return channelGranted(grantedPermissions(current.role), channel)
 }
 
-/** Enveloppe ipcMain.handle : tout canal est refusé si le rôle n'a pas le droit. À appeler avant les enregistrements. */
+// ---- Journal d'audit : chaque action qui modifie quelque chose (et chaque refus d'accès) est enregistrée ----
+// Les simples lectures (listes, fiches, aperçus) ne sont pas journalisées.
+const READ_ACTIONS = new Set(['list', 'get', 'getAll', 'status', 'stats', 'statement', 'movements', 'payments', 'preview', 'config',
+  'printers', 'compose', 'pickDir', 'articles', 'lots', 'lot', 'pending', 'history'])
+const isRead = (channel: string): boolean => READ_ACTIONS.has(channel.split(':')[1] ?? '')
+
+/** Copie des arguments sans aucun mot de passe, tronquée pour rester lisible. */
+function auditDetails(channel: string, args: unknown[]): string | null {
+  if (channel === 'auth:login') return JSON.stringify({ identifiant: String(args[0] ?? '') })
+  if (!args.length) return null
+  const json = JSON.stringify(args.length === 1 ? args[0] : args, (k, v) => (/password|mot_de_passe/i.test(k) ? '***' : v))
+  return json && json.length > 2000 ? json.slice(0, 2000) + '…' : (json ?? null)
+}
+
+function auditResult(data: unknown): string | null {
+  if (data === undefined || data === null) return null
+  if (typeof data !== 'object') return String(data)
+  const d = data as Record<string, unknown>
+  const keep = ['id', 'number', 'created', 'updated', 'username']
+  const picked = Object.fromEntries(keep.filter((k) => d[k] !== undefined && typeof d[k] !== 'object').map((k) => [k, d[k]]))
+  return Object.keys(picked).length ? JSON.stringify(picked) : null
+}
+
+function writeAudit(channel: string, user: User | null, args: unknown[], res: any): void {
+  try {
+    const ok = !!res && typeof res === 'object' && 'ok' in res ? !!res.ok : true
+    getDb().prepare('INSERT INTO audit_log(user_id, user_name, channel, details, result, ok, error) VALUES (?,?,?,?,?,?,?)').run(
+      user?.id ?? null, user ? `${user.fullName} (${user.username})` : '', channel, auditDetails(channel, args),
+      ok ? auditResult(res?.data) : null, ok ? 1 : 0, ok ? null : String(res?.error ?? '').slice(0, 500))
+  } catch {
+    // Le journal ne doit jamais empêcher l'application de fonctionner (ex. base en cours de restauration).
+  }
+}
+
+/**
+ * Enveloppe ipcMain.handle : tout canal est refusé si le rôle n'a pas le droit, et toute action est inscrite au journal d'audit.
+ * À appeler avant les enregistrements.
+ */
 export function installGuard(): void {
   const original = ipcMain.handle.bind(ipcMain)
   ;(ipcMain as any).handle = (channel: string, listener: (...a: any[]) => any) =>
-    original(channel, (e, ...args) => (isAllowed(channel) ? listener(e, ...args) : { ok: false, error: 'Accès refusé.' }))
+    original(channel, (e, ...args) => {
+      const before = current // l'utilisateur qui agit (pour une déconnexion, celui qui part)
+      if (!isAllowed(channel)) {
+        const denied = { ok: false, error: 'Accès refusé.' }
+        writeAudit(channel, before, args, denied)
+        return denied
+      }
+      const out = listener(e, ...args)
+      if (isRead(channel) || channel === 'auth:status' || channel === 'app:config') return out
+      // Certains gestionnaires sont asynchrones (impression, import…) : on journalise une fois le résultat connu.
+      const log = (res: unknown) => { writeAudit(channel, before ?? current, args, res); return res }
+      return out instanceof Promise ? out.then(log) : log(out)
+    })
 }
 
 function handle<T>(channel: string, fn: (...args: any[]) => T): void {
@@ -69,7 +118,11 @@ function validate(u: UserInput, creating: boolean): void {
 export function registerAuthHandlers(): void {
   const db = () => getDb()
 
-  handle('auth:status', (): AuthStatus => ({ hasUsers: countUsers() > 0, user: current }))
+  handle('auth:status', (): AuthStatus => {
+    const s = getSettings()
+    const shop = (db().prepare(`SELECT value FROM settings WHERE key = 'shop_name'`).get() as any)?.value ?? ''
+    return { hasUsers: countUsers() > 0, user: current, shopName: s.company_name || shop || 'Quincaillerie', logo: s.company_logo || '' }
+  })
 
   // Premier lancement : création du compte administrateur.
   handle('auth:setup', (u: UserInput) => {

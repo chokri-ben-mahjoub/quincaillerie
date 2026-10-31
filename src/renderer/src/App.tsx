@@ -13,6 +13,7 @@ import DevisPage from '@/pages/DevisPage'
 import CommandesPage from '@/pages/CommandesPage'
 import LivraisonsPage from '@/pages/LivraisonsPage'
 import SettingsPage from '@/pages/SettingsPage'
+import TracabilitePage from '@/pages/TracabilitePage'
 import LoginPage from '@/pages/LoginPage'
 import type { User } from '@shared/types'
 
@@ -77,6 +78,7 @@ export default function App() {
     achats: <AchatsPage />,
     clients: <ClientsPage />,
     rapports: <RapportsPage />,
+    tracabilite: <TracabilitePage isAdmin={user.role === 'admin'} />,
     utilisateurs: <UsersPage />,
     factures: <FacturesPage />,
     devis: <DevisPage />,

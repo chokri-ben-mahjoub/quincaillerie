@@ -61,3 +61,36 @@
 /* Champs numériques des grilles de saisie : pas de flèches, on tape directement */
 input.no-spin::-webkit-outer-spin-button, input.no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input.no-spin { -moz-appearance: textfield; }
+
+/* ---------- Écran de connexion ---------- */
+/* Panneau perforé : un trou tous les 28 px, avec un léger reflet sur le bord inférieur pour l'effet percé. */
+.pegboard {
+  background-image:
+    radial-gradient(circle at 14px 15.5px, rgb(255 255 255 / 0.08) 0 2.8px, transparent 3px),
+    radial-gradient(circle at 14px 14px, hsl(var(--shadow) / 0.85) 0 2.8px, transparent 3px);
+  background-size: 28px 28px;
+}
+.dark .pegboard {
+  background-image:
+    radial-gradient(circle at 14px 15.5px, rgb(255 255 255 / 0.05) 0 2.6px, transparent 3px),
+    radial-gradient(circle at 14px 14px, rgb(0 0 0 / 0.75) 0 2.6px, transparent 3px);
+}
+.login-display {
+  font-family: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -0.025em;
+}
+/* Les outils se balancent une seule fois à l'ouverture, autour de leur crochet. */
+.tool-swing {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  animation: tool-swing 1.8s cubic-bezier(0.33, 0, 0.2, 1) both;
+}
+@keyframes tool-swing {
+  0% { transform: rotate(var(--swing)); }
+  40% { transform: rotate(calc(var(--swing) * -0.45)); }
+  70% { transform: rotate(calc(var(--swing) * 0.15)); }
+  100% { transform: rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-swing { animation: none; }
+}

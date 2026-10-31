@@ -168,6 +168,8 @@ export interface UserInput {
 export interface AuthStatus {
   hasUsers: boolean
   user: User | null
+  shopName: string // affiché sur l'écran de connexion
+  logo: string // logo de la société (data URL) ou ''
 }
 
 // ---------- Sauvegarde ----------
